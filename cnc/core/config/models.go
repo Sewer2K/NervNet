@@ -22,10 +22,10 @@ type ConfigModel struct {
 		Ftp2    int  `json:"ftp2"`
 	} `json:"webserver"`
 	Telegram struct {
-		Enabled  bool        `json:"enabled"`
-		BotToken string      `json:"botToken"`
-		ChatId   int         `json:"ChatId"`
-		Admins   StringSlice `json:"admins"`
+		Enabled  bool     `json:"enabled"`
+		BotToken string   `json:"botToken"`
+		ChatId   int      `json:"ChatId"`
+		Admins   []string `json:"admins"`
 	} `json:"telegram"`
 	Discord struct {
 		Enabled             bool   `json:"enabled"`
