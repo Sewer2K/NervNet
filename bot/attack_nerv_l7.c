@@ -5,6 +5,7 @@
 #endif
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <linux/ip.h>
@@ -12,7 +13,6 @@
 #include <linux/udp.h>
 #include <errno.h>
 #include <time.h>
-#include <string.h>
 
 #include "includes.h"
 #include "attack.h"
