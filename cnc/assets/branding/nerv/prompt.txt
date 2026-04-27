@@ -1,0 +1,1 @@
+<<primary>><<$user.username>><<secondary>>@<<primary>>nerve<<secondary>> ><<primary>><<reset>> 

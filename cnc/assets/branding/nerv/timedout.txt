@@ -1,0 +1,5 @@
+\x1b[38;2;255;23;68m!! OPERATOR TEMPORARILY RESTRICTED !!\x1b[0m
+\x1b[38;2;255;23;68mYour access has been suspended by the MAGI.\x1b[0m
+\x1b[38;2;255;23;68mPlease wait and try again later.\x1b[0m
+\x1b[0m
+

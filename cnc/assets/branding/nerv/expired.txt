@@ -1,0 +1,5 @@
+\x1b[38;2;255;23;68m!! OPERATOR CLEARANCE EXPIRED !!\x1b[0m
+\x1b[38;2;255;23;68mYour authorization with NERV has been revoked.\x1b[0m
+\x1b[38;2;255;23;68mContact your MAGI administrator for renewal.\x1b[0m
+\x1b[0m
+

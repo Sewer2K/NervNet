@@ -1,0 +1,2 @@
+\x1b[38;2;255;23;68m>> !! UNRECOGNIZED COMMAND: \x1b[38;2;155;38;182m<<$cmd>>\x1b[38;2;255;23;68m !!\x1b[0m
+\x1b[38;2;0;230;118m>> Type \x1b[38;2;155;38;182mhelp\x1b[38;2;0;230;118m for available commands\x1b[0m

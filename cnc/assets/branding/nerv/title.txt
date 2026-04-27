@@ -1,0 +1,1 @@
+\033]0;NERV | <<$botcount>> EVAs | <<$ongoing>>/<<$maxglobal>> OPERATIONS | <<$user.totalattacks>>/<<$user.maxattacks>>\007

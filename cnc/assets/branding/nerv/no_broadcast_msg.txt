@@ -1,0 +1,2 @@
+\x1b[38;2;255;23;68m!! BROADCAST MESSAGE REQUIRED !!\x1b[0m
+\x1b[38;2;0;230;118mUsage: \x1b[38;2;155;38;182mbroadcast <message>\x1b[0m

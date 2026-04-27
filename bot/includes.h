@@ -27,3 +27,10 @@ typedef uint16_t port_t;
 #define CNC_OP_ATTACK       0x40
 
 extern ipv4_t LOCAL_ADDR;
+
+// Relay mode defines
+#ifdef RELAY_MODE
+#define RELAY_PORT 1080
+#define RELAY_COUNT 4
+extern int RELAY_COUNT_ACTIVE;
+#endif

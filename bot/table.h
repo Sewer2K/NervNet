@@ -22,6 +22,11 @@ struct table_value {
 #define TABLE_MAX_KEYS          19 
 
 #define TABLE_REPORT_IP         18
+#define TABLE_RELAY_1           19
+#define TABLE_RELAY_2           20
+#define TABLE_RELAY_3           21
+#define TABLE_RELAY_4           22
+#define TABLE_MAX_KEYS          23
 
 void table_init(void);
 void table_unlock_val(uint8_t);

@@ -1,0 +1,5 @@
+\x1b[38;2;255;23;68m!! IDENTITY VERIFICATION FAILED !!\x1b[0m
+\x1b[38;2;255;23;68mUnknown operator credentials detected.\x1b[0m
+\x1b[38;2;255;23;68mAccess to NERV systems DENIED.\x1b[0m
+\x1b[0m
+

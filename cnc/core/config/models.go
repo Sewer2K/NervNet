@@ -27,6 +27,14 @@ type ConfigModel struct {
 		ChatId   int      `json:"ChatId"`
 		Admins   []string `json:"admins"`
 	} `json:"telegram"`
+	Discord struct {
+		Enabled             bool     `json:"enabled"`
+		BotToken            string   `json:"botToken"`
+		Prefix              string   `json:"prefix"`
+		Admins              []string `json:"admins"`
+		AllowedChannels     []string `json:"allowedChannels"`
+		NotificationChannel string   `json:"notificationChannel"`
+	} `json:"discord"`
 	Queue struct {
 		QueuedMessage    string `json:"queuedMessage"`
 		BroadcastMessage string `json:"broadcastMessage"`

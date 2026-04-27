@@ -19,5 +19,13 @@
     "queuedMessage": "Attack has been queued in spot <<$pos>>. It will be launched in <<$waittime>> seconds.",
     "broadcastMessage": "Queued attack has been broadcasted to <<$botcount>> bots"
   },
-  "ipInfoToken": "96c2f066646363"
+  "ipInfoToken": "96c2f066646363",
+  "discord": {
+    "enabled": false,
+    "botToken": "",
+    "prefix": "!",
+    "admins": [],
+    "allowedChannels": [],
+    "notificationChannel": ""
+  }
 }

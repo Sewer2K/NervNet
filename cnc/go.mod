@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/alexeyco/simpletable v1.0.0
+	github.com/bwmarrin/discordgo v0.28.1
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible

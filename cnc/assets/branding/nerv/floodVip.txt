@@ -1,0 +1,2 @@
+\x1b[38;2;255;23;68m!! UNAUTHORIZED ACCESS !!\x1b[0m
+\x1b[38;2;255;23;68mThis operation requires FIRST CHILD clearance (vip)\x1b[0m
