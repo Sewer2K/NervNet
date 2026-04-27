@@ -51,6 +51,8 @@ func handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	log.Printf("[discord] Received message from %s in channel %s: %s", m.Author.ID, m.ChannelID, m.Content)
+	log.Printf("[discord] Allowed channels from config: %v (type: %T)", config.Config.Discord.AllowedChannels, config.Config.Discord.AllowedChannels)
+	log.Printf("[discord] Channel ID matches? %v", isAllowedChannel(m.ChannelID))
 
 	// Only respond in allowed channels
 	if !isAllowedChannel(m.ChannelID) {
@@ -153,6 +155,10 @@ func isAllowedChannel(channelID string) bool {
 	allowed := config.Config.Discord.AllowedChannels
 	if len(allowed) == 0 {
 		// If no channels specified, respond in all channels
+		return true
+	}
+	// Also allow the notification channel
+	if channelID == config.Config.Discord.NotificationChannel {
 		return true
 	}
 	for _, ch := range allowed {
