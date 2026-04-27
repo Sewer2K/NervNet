@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 )
 
 var Config *ConfigModel
@@ -22,7 +21,8 @@ func (s *StringSlice) UnmarshalJSON(data []byte) error {
 		case string:
 			(*s)[i] = val
 		case float64:
-			(*s)[i] = strconv.Itoa(int(val))
+			// Use %.0f to preserve large Discord IDs (snowflakes up to 2^63)
+			(*s)[i] = fmt.Sprintf("%.0f", val)
 		default:
 			return fmt.Errorf("cannot unmarshal %T into string", v)
 		}
@@ -50,10 +50,10 @@ type ConfigModel struct {
 		Ftp2    int  `json:"ftp2"`
 	} `json:"webserver"`
 	Telegram struct {
-		Enabled  bool     `json:"enabled"`
-		BotToken string   `json:"botToken"`
-		ChatId   int      `json:"ChatId"`
-		Admins   []string `json:"admins"`
+		Enabled  bool        `json:"enabled"`
+		BotToken string      `json:"botToken"`
+		ChatId   int         `json:"ChatId"`
+		Admins   StringSlice `json:"admins"`
 	} `json:"telegram"`
 	Discord struct {
 		Enabled             bool        `json:"enabled"`
