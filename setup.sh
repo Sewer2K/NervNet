@@ -195,16 +195,25 @@ if [ "$USE_DISCORD" -eq 1 ] && [ -n "$DISCORD_TOKEN" ]; then
     log INFO "Configuring Discord bot in config.json..."
     CONFIG_FILE="$WORK_DIR/cnc/assets/config.json"
     
-    # Enable Discord and set the bot token
-    sed -i 's/"enabled": false/"enabled": true/' "$CONFIG_FILE"
-    sed -i "s|\"botToken\": \"\"|\"botToken\": \"$DISCORD_TOKEN\"|" "$CONFIG_FILE"
-    sed -i "s|\"prefix\": \"!\"|\"prefix\": \"$DISCORD_PREFIX\"|" "$CONFIG_FILE"
-    
-    if [ -n "$DISCORD_NOTIFICATION_CHANNEL" ]; then
-        sed -i "s|\"notificationChannel\": \"\"|\"notificationChannel\": \"$DISCORD_NOTIFICATION_CHANNEL\"|" "$CONFIG_FILE"
+    # Use Python to properly edit the JSON (avoids sed issues with multiple nested keys)
+    python3 -c "
+import json
+with open('$CONFIG_FILE', 'r') as f:
+    data = json.load(f)
+data['discord']['enabled'] = True
+data['discord']['botToken'] = '$DISCORD_TOKEN'
+data['discord']['prefix'] = '$DISCORD_PREFIX'
+if '$DISCORD_NOTIFICATION_CHANNEL':
+    data['discord']['notificationChannel'] = '$DISCORD_NOTIFICATION_CHANNEL'
+with open('$CONFIG_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/tmp/discord_config.log
+    if [ $? -ne 0 ]; then
+        log ERROR "Failed to configure Discord in config.json!"
+        cat /tmp/discord_config.log | while IFS= read -r line; do log ERROR "  $line"; done
+    else
+        log INFO "Discord bot configured with token and prefix '$DISCORD_PREFIX'"
     fi
-    
-    log INFO "Discord bot configured with token and prefix '$DISCORD_PREFIX'"
 fi
 
 log INFO "Updating bot configuration"
