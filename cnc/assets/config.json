@@ -24,8 +24,8 @@
     "enabled": false,
     "botToken": "",
     "prefix": "!",
-    "admins": [],
-    "allowedChannels": [],
+    "adminId": "",
+    "allowedChannel": "",
     "notificationChannel": ""
   }
 }

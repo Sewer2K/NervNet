@@ -50,13 +50,9 @@ func handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	log.Printf("[discord] Received message from %s in channel %s: %s", m.Author.ID, m.ChannelID, m.Content)
-	log.Printf("[discord] Allowed channels from config: %v (type: %T)", config.Config.Discord.AllowedChannels, config.Config.Discord.AllowedChannels)
-	log.Printf("[discord] Channel ID matches? %v", isAllowedChannel(m.ChannelID))
-
-	// Only respond in allowed channels
+	// Only respond in the allowed channel
 	if !isAllowedChannel(m.ChannelID) {
-		log.Printf("[discord] Channel %s not in allowed list, ignoring", m.ChannelID)
+		log.Printf("[discord] Channel %s not allowed, ignoring", m.ChannelID)
 		return
 	}
 
@@ -143,30 +139,16 @@ func handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func isAdmin(userID string) bool {
-	for _, admin := range config.Config.Discord.Admins {
-		if admin == userID {
-			return true
-		}
-	}
-	return false
+	return userID == config.Config.Discord.AdminID
 }
 
 func isAllowedChannel(channelID string) bool {
-	allowed := config.Config.Discord.AllowedChannels
-	if len(allowed) == 0 {
-		// If no channels specified, respond in all channels
+	allowed := config.Config.Discord.AllowedChannel
+	if allowed == "" {
+		// If no channel specified, respond in all channels
 		return true
 	}
-	// Also allow the notification channel
-	if channelID == config.Config.Discord.NotificationChannel {
-		return true
-	}
-	for _, ch := range allowed {
-		if ch == channelID {
-			return true
-		}
-	}
-	return false
+	return channelID == allowed || channelID == config.Config.Discord.NotificationChannel
 }
 
 // SendMessage sends a message to the configured notification channel

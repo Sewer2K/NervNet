@@ -195,7 +195,8 @@ if [ "$USE_DISCORD" -eq 1 ] && [ -n "$DISCORD_TOKEN" ]; then
     log INFO "Configuring Discord bot in config.json..."
     CONFIG_FILE="$WORK_DIR/cnc/assets/config.json"
     
-    # Use Python to properly edit the JSON (avoids sed issues with multiple nested keys)
+    # Note: adminId and allowedChannel must be set manually in config.json after setup
+    # Run the CNC once, check the logs for your Discord user/channel IDs, then edit config.json
     python3 -c "
 import json
 with open('$CONFIG_FILE', 'r') as f:
@@ -205,6 +206,7 @@ data['discord']['botToken'] = '$DISCORD_TOKEN'
 data['discord']['prefix'] = '$DISCORD_PREFIX'
 if '$DISCORD_NOTIFICATION_CHANNEL':
     data['discord']['notificationChannel'] = '$DISCORD_NOTIFICATION_CHANNEL'
+    data['discord']['allowedChannel'] = '$DISCORD_NOTIFICATION_CHANNEL'
 with open('$CONFIG_FILE', 'w') as f:
     json.dump(data, f, indent=2)
 " 2>/tmp/discord_config.log
@@ -213,6 +215,8 @@ with open('$CONFIG_FILE', 'w') as f:
         cat /tmp/discord_config.log | while IFS= read -r line; do log ERROR "  $line"; done
     else
         log INFO "Discord bot configured with token and prefix '$DISCORD_PREFIX'"
+        log WARN "You still need to set 'adminId' in config.json to your Discord user ID (as a string)"
+        log WARN "Example: \"adminId\": \"331806498286206976\""
     fi
 fi
 
