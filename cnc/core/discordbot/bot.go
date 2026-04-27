@@ -26,6 +26,9 @@ func Init() {
 		return
 	}
 
+	// Request necessary intents to read messages and guild data
+	dg.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentsMessageContent
+
 	dg.AddHandler(handleReady)
 	dg.AddHandler(handleMessageCreate)
 
@@ -47,8 +50,11 @@ func handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	log.Printf("[discord] Received message from %s in channel %s: %s", m.Author.ID, m.ChannelID, m.Content)
+
 	// Only respond in allowed channels
 	if !isAllowedChannel(m.ChannelID) {
+		log.Printf("[discord] Channel %s not in allowed list, ignoring", m.ChannelID)
 		return
 	}
 
@@ -59,10 +65,12 @@ func handleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if len(m.Content) < len(prefix)+1 || m.Content[:len(prefix)] != prefix {
+		log.Printf("[discord] Message doesn't start with prefix '%s', ignoring", prefix)
 		return
 	}
 
 	cmd := m.Content[len(prefix):]
+	log.Printf("[discord] Processing command: %s", cmd)
 
 	switch cmd {
 	case "ping":
