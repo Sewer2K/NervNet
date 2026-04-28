@@ -20,15 +20,22 @@
 
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 {
-    int len = util_strlen(src_domain) + 1;
+    int len = util_strlen(src_domain);
     char *lbl = dst_hostname, *dst_pos = dst_hostname + 1;
     uint8_t curr_len = 0;
+    int i;
 
-    while (len-- > 0)
+    if (len == 0)
     {
-        char c = *src_domain++;
+        dst_hostname[0] = 0;
+        return;
+    }
 
-        if (c == '.' || c == 0)
+    for (i = 0; i < len; i++)
+    {
+        char c = src_domain[i];
+
+        if (c == '.')
         {
             *lbl = curr_len;
             lbl = dst_pos++;
@@ -40,6 +47,7 @@ void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
             *dst_pos++ = c;
         }
     }
+    *lbl = curr_len;
     *dst_pos = 0;
 }
 
@@ -127,7 +135,9 @@ struct resolv_entries *resolv_lookup(char *domain)
             continue;
         }
 
-        fcntl(F_SETFL, fd, O_NONBLOCK | fcntl(F_GETFL, fd, 0));
+        // Set socket to non-blocking for select()
+        int flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
         FD_ZERO(&fdset);
         FD_SET(fd, &fdset);
 
