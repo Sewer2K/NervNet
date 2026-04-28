@@ -38,40 +38,15 @@ void table_init(void) {
 }
 
 void table_unlock_val(uint8_t id) {
-    struct table_value *val = &table[id];
-
-#ifdef DEBUG
-    if (!val->locked) {
-        printf("[table] Tried to double-unlock value %d\n", id);
-        return;
-    }
-#endif
-
     toggle_obf(id);
 }
 
 void table_lock_val(uint8_t id) {
-    struct table_value *val = &table[id];
-
-#ifdef DEBUG
-    if (val->locked) {
-        printf("[table] Tried to double-lock value\n");
-        return;
-    }
-#endif
-
     toggle_obf(id);
 }
 
 char *table_retrieve_val(int id, int *len) {
     struct table_value *val = &table[id];
-
-#ifdef DEBUG
-    if (val->locked) {
-        printf("[table] Tried to access table.%d but it is locked\n", id);
-        return NULL;
-    }
-#endif
 
     if (len != NULL)
         *len = (int)val->val_len;
@@ -92,9 +67,6 @@ static void add_entry(uint8_t id, char *buf, int buf_len) {
 
     table[id].val = cpy;
     table[id].val_len = (uint16_t)buf_len;
-#ifdef DEBUG
-    table[id].locked = TRUE;
-#endif
 }
 
 
@@ -119,7 +91,4 @@ static void toggle_obf(uint8_t id) {
         }
     }
 
-#ifdef DEBUG
-    val->locked = !val->locked;
-#endif
 }

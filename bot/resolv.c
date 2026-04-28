@@ -135,7 +135,8 @@ struct resolv_entries *resolv_lookup(char *domain)
             continue;
         }
 
-        fcntl(F_SETFL, fd, O_NONBLOCK | fcntl(F_GETFL, fd, 0));
+        int flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
         while (1)
         {
