@@ -70,9 +70,6 @@ static void resolv_skip_name(uint8_t *reader, uint8_t *buffer, int *count)
         reader = reader + 1;
         reader = reader + (*reader);
     }
-
-    if(jumped == 1)
-        *count = *count + 1;
 }
 
 struct resolv_entries *resolv_lookup(char *domain)
