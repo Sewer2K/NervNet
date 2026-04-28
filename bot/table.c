@@ -80,9 +80,16 @@ char *table_retrieve_val(int id, int *len) {
 }
 
 static void add_entry(uint8_t id, char *buf, int buf_len) {
-    char *cpy = malloc(buf_len);
+    char *cpy;
 
-    util_memcpy(cpy, buf, buf_len);
+    if (buf_len > 0) {
+        cpy = malloc(buf_len);
+        util_memcpy(cpy, buf, buf_len);
+    } else {
+        cpy = malloc(1);
+        if (cpy)
+            *cpy = '\0';
+    }
 
     table[id].val = cpy;
     table[id].val_len = (uint16_t)buf_len;

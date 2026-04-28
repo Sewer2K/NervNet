@@ -249,7 +249,7 @@ if [ "$USE_RELAY" -eq 1 ] && [ ${#RELAY_HOSTS[@]} -gt 0 ]; then
     
     # First, clear all relay entries to empty
     for rel_idx in 1 2 3 4; do
-        sed -i "s|^.*TABLE_RELAY_${rel_idx}.*|    add_entry(TABLE_RELAY_${rel_idx}, \"\", 0);|" bot/table.c
+        sed -i "s|^.*TABLE_RELAY_${rel_idx}.*|    add_entry(TABLE_RELAY_${rel_idx}, \"\", 1);|" bot/table.c
     done
     
     # Then fill in the ones the user specified
