@@ -71,6 +71,9 @@ struct resolv_entries *resolv_lookup(char *domain)
     struct dnshdr *dnsh = (struct dnshdr *)query;
     char *qname = (char *)(dnsh + 1);
 
+#ifdef DEBUG
+    printf("[resolv] Looking up: %s\n", domain);
+#endif
     resolv_domain_to_hostname(qname, domain);
 
     struct dns_question *dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
