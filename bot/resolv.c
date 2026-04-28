@@ -20,22 +20,15 @@
 
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 {
-    int len = util_strlen(src_domain);
+    int len = util_strlen(src_domain) + 1;
     char *lbl = dst_hostname, *dst_pos = dst_hostname + 1;
     uint8_t curr_len = 0;
-    int i;
 
-    if (len == 0)
+    while (len-- > 0)
     {
-        dst_hostname[0] = 0;
-        return;
-    }
+        char c = *src_domain++;
 
-    for (i = 0; i < len; i++)
-    {
-        char c = src_domain[i];
-
-        if (c == '.')
+        if (c == '.' || c == 0)
         {
             *lbl = curr_len;
             lbl = dst_pos++;
@@ -47,7 +40,6 @@ void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
             *dst_pos++ = c;
         }
     }
-    *lbl = curr_len;
     *dst_pos = 0;
 }
 
@@ -135,9 +127,7 @@ struct resolv_entries *resolv_lookup(char *domain)
             continue;
         }
 
-        // Set socket to non-blocking for select()
-        int flags = fcntl(fd, F_GETFL, 0);
-        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        fcntl(F_SETFL, fd, O_NONBLOCK | fcntl(F_GETFL, fd, 0));
         FD_ZERO(&fdset);
         FD_SET(fd, &fdset);
 
@@ -170,25 +160,13 @@ struct resolv_entries *resolv_lookup(char *domain)
             uint16_t ancount;
             int stop;
 
-            if (ret < (int)sizeof(struct dnshdr))
+            if (ret < (sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question)))
                 continue;
 
             dnsh = (struct dnshdr *)response;
-            
-            // The response uses the same query structure
-            // We need to find the answer section by skipping the question
-            char *resp_qname = (char *)(dnsh + 1);
-            
-            // Skip the question name (may use compression in query echo)
-            int resp_qname_len, qstop;
-            resolv_skip_name((uint8_t *)resp_qname, (uint8_t *)response, &qstop);
-            resp_qname_len = qstop + 1; // +1 for the null terminator byte
-            
-            dnst = (struct dns_question *)(resp_qname + resp_qname_len);
+            qname = (char *)(dnsh + 1);
+            dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
             name = (char *)(dnst + 1);
-
-            if (ret < (int)(sizeof(struct dnshdr) + resp_qname_len + sizeof(struct dns_question)))
-                continue;
 
             if (dnsh->id != dns_id)
                 continue;
@@ -196,24 +174,17 @@ struct resolv_entries *resolv_lookup(char *domain)
                 continue;
 
             ancount = ntohs(dnsh->ancount);
-#ifdef DEBUG
-            printf("[resolv] Answer count: %d\n", ancount);
-#endif
             while (ancount-- > 0)
             {
                 struct dns_resource *r_data = NULL;
 
-                resolv_skip_name((uint8_t *)name, (uint8_t *)response, &stop);
+                resolv_skip_name(name, response, &stop);
                 name = name + stop;
 
                 r_data = (struct dns_resource *)name;
                 name = name + sizeof(struct dns_resource);
 
-#ifdef DEBUG
-                printf("[resolv] Record type: %d class: %d data_len: %d\n", ntohs(r_data->type), ntohs(r_data->_class), ntohs(r_data->data_len));
-#endif
-
-                if (ntohs(r_data->type) == PROTO_DNS_QTYPE_A && ntohs(r_data->_class) == PROTO_DNS_QCLASS_IP)
+                if (r_data->type == htons(PROTO_DNS_QTYPE_A) && r_data->_class == htons(PROTO_DNS_QCLASS_IP))
                 {
                     if (ntohs(r_data->data_len) == 4)
                     {
@@ -230,10 +201,12 @@ struct resolv_entries *resolv_lookup(char *domain)
                         printf("[resolv] Found IP address: %d.%d.%d.%d\n", CONVERT_ADDR(*p));
 #endif
                     }
+
+                    name = name + ntohs(r_data->data_len);
+                } else {
+                    resolv_skip_name(name, response, &stop);
+                    name = name + stop;
                 }
-                
-                // Always advance past the resource data
-                name = name + ntohs(r_data->data_len);
             }
 
         break;
