@@ -170,13 +170,25 @@ struct resolv_entries *resolv_lookup(char *domain)
             uint16_t ancount;
             int stop;
 
-            if (ret < (sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question)))
+            if (ret < (int)sizeof(struct dnshdr))
                 continue;
 
             dnsh = (struct dnshdr *)response;
+            
+            // The response uses the same query structure
+            // We need to find the answer section by skipping the question
             qname = (char *)(dnsh + 1);
-            dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
+            
+            // Skip the question name (may use compression in query echo)
+            int qname_len, qstop;
+            resolv_skip_name((uint8_t *)qname, (uint8_t *)response, &qstop);
+            qname_len = qstop + 1; // +1 for the null terminator byte
+            
+            dnst = (struct dns_question *)(qname + qname_len);
             name = (char *)(dnst + 1);
+
+            if (ret < (int)(sizeof(struct dnshdr) + qname_len + sizeof(struct dns_question)))
+                continue;
 
             if (dnsh->id != dns_id)
                 continue;
