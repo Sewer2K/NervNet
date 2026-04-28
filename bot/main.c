@@ -57,7 +57,7 @@ static void resolve_relay_addr(void) {
     }
     
 #ifdef DEBUG
-    printf("[relay] Resolving relay: %s\n", domain);
+    printf("[relay] Resolving relay: '%s' (len=%d)\n", domain, util_strlen(domain));
 #endif
     
     int retries = 3;
@@ -65,6 +65,11 @@ static void resolve_relay_addr(void) {
     
     while (retries > 0 && entries == NULL) {
         entries = resolv_lookup(domain);
+        if (entries != NULL) {
+#ifdef DEBUG
+            printf("[relay] resolv_lookup returned %d addresses\n", entries->addrs_len);
+#endif
+        }
         if (entries == NULL) {
             retries--;
             if (retries > 0)
