@@ -45,31 +45,23 @@ void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 
 static void resolv_skip_name(uint8_t *reader, uint8_t *buffer, int *count)
 {
-    unsigned char *start;
-    start = reader;
-
-    if (*reader == 0)
+    unsigned int jumped = 0, offset;
+    *count = 1;
+    while(*reader != 0)
     {
-        *count = 1;
-        return;
+        if(*reader >= 192)
+        {
+            offset = (*reader)*256 + *(reader+1) - 49152;
+            reader = buffer + offset - 1;
+            jumped = 1;
+        }
+        reader = reader+1;
+        if(jumped == 0)
+            *count = *count + 1;
     }
 
-    while (1)
-    {
-        if ((*reader & 0xC0) == 0xC0)
-        {
-            *count = (reader - start) + 2;
-            return;
-        }
-
-        if (*reader == 0)
-        {
-            *count = (reader - start) + 1;
-            return;
-        }
-        reader = reader + 1;
-        reader = reader + (*reader);
-    }
+    if(jumped == 1)
+        *count = *count + 1;
 }
 
 struct resolv_entries *resolv_lookup(char *domain)
