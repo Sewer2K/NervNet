@@ -45,6 +45,7 @@ BOOL attack_init(void)
     add_attack(ATK_VEC_TLSPLUS, (ATTACK_FUNC)attack_tlsplus);
     add_attack(ATK_VEC_CLOUDFLARE, (ATTACK_FUNC)attack_cloudflare);
     add_attack(ATK_VEC_NERV_L7, (ATTACK_FUNC)attack_nerv_l7);
+    add_attack(ATK_VEC_OVH, (ATTACK_FUNC)attack_ovh);
     return TRUE;
 }
 

