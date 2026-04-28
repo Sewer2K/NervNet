@@ -6,6 +6,9 @@
 struct table_value {
     char *val;
     uint16_t val_len;
+#ifdef DEBUG
+    BOOL locked;
+#endif
 };
 
 #define TABLE_KEY_LEN (sizeof(table_keys) / sizeof(*table_keys))
