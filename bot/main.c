@@ -39,6 +39,9 @@
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
 static void establish_connection(void);
+
+extern struct sockaddr_in srv_addr;
+
 #ifdef RELAY_MODE
 static void resolve_relay_addr(void)
 {
