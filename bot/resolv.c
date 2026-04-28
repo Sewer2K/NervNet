@@ -205,7 +205,7 @@ struct resolv_entries *resolv_lookup(char *domain)
                     name = name + ntohs(r_data->data_len);
                 } else {
                     resolv_skip_name(name, response, &stop);
-                    name = name + stop;
+                    name = name + stop + ntohs(r_data->data_len);
                 }
             }
         }
