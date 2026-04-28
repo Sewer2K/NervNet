@@ -64,6 +64,7 @@ typedef uint8_t ATTACK_VECTOR;
 #define ATK_OPT_DOMAIN          8   
 #define ATK_OPT_DNS_HDR_ID      9   
 #define ATK_OPT_SEQ             10  
+#define ATK_OPT_PPS             31  
 
 #define ATK_OPT_URG             11  
 #define ATK_OPT_ACK             12  

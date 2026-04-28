@@ -18,7 +18,7 @@
 #include "checksum.h"
 #include "rand.h"
 
-#define PHI 0xaaf219b9
+#define OVH_PHI 0xaaf219b9
 
 static unsigned long int Q[4096], c = 362436;
 
@@ -26,11 +26,11 @@ void ovh_rand_init(unsigned long int x)
 {
     int i;
     Q[0] = x;
-    Q[1] = x + PHI;
-    Q[2] = x + PHI + PHI;
+    Q[1] = x + OVH_PHI;
+    Q[2] = x + OVH_PHI + OVH_PHI;
     for (i = 3; i < 4096; i++)
     {
-        Q[i] = Q[i - 3] ^ Q[i - 2] ^ PHI ^ i;
+        Q[i] = Q[i - 3] ^ Q[i - 2] ^ OVH_PHI ^ i;
     }
 }
 

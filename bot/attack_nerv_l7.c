@@ -1,8 +1,5 @@
 #define _GNU_SOURCE
-
-#ifdef DEBUG
 #include <stdio.h>
-#endif
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
