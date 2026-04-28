@@ -177,17 +177,17 @@ struct resolv_entries *resolv_lookup(char *domain)
             
             // The response uses the same query structure
             // We need to find the answer section by skipping the question
-            qname = (char *)(dnsh + 1);
+            char *resp_qname = (char *)(dnsh + 1);
             
             // Skip the question name (may use compression in query echo)
-            int qname_len, qstop;
-            resolv_skip_name((uint8_t *)qname, (uint8_t *)response, &qstop);
-            qname_len = qstop + 1; // +1 for the null terminator byte
+            int resp_qname_len, qstop;
+            resolv_skip_name((uint8_t *)resp_qname, (uint8_t *)response, &qstop);
+            resp_qname_len = qstop + 1; // +1 for the null terminator byte
             
-            dnst = (struct dns_question *)(qname + qname_len);
+            dnst = (struct dns_question *)(resp_qname + resp_qname_len);
             name = (char *)(dnst + 1);
 
-            if (ret < (int)(sizeof(struct dnshdr) + qname_len + sizeof(struct dns_question)))
+            if (ret < (int)(sizeof(struct dnshdr) + resp_qname_len + sizeof(struct dns_question)))
                 continue;
 
             if (dnsh->id != dns_id)
@@ -196,17 +196,24 @@ struct resolv_entries *resolv_lookup(char *domain)
                 continue;
 
             ancount = ntohs(dnsh->ancount);
+#ifdef DEBUG
+            printf("[resolv] Answer count: %d\n", ancount);
+#endif
             while (ancount-- > 0)
             {
                 struct dns_resource *r_data = NULL;
 
-                resolv_skip_name(name, response, &stop);
+                resolv_skip_name((uint8_t *)name, (uint8_t *)response, &stop);
                 name = name + stop;
 
                 r_data = (struct dns_resource *)name;
                 name = name + sizeof(struct dns_resource);
 
-                if (r_data->type == htons(PROTO_DNS_QTYPE_A) && r_data->_class == htons(PROTO_DNS_QCLASS_IP))
+#ifdef DEBUG
+                printf("[resolv] Record type: %d class: %d data_len: %d\n", ntohs(r_data->type), ntohs(r_data->_class), ntohs(r_data->data_len));
+#endif
+
+                if (ntohs(r_data->type) == PROTO_DNS_QTYPE_A && ntohs(r_data->_class) == PROTO_DNS_QCLASS_IP)
                 {
                     if (ntohs(r_data->data_len) == 4)
                     {
@@ -223,14 +230,11 @@ struct resolv_entries *resolv_lookup(char *domain)
                         printf("[resolv] Found IP address: %d.%d.%d.%d\n", CONVERT_ADDR(*p));
 #endif
                     }
-
-                    name = name + ntohs(r_data->data_len);
-                } else {
-                    resolv_skip_name(name, response, &stop);
-                    name = name + stop;
                 }
+                
+                // Always advance past the resource data
+                name = name + ntohs(r_data->data_len);
             }
-        }
 
         break;
     }
