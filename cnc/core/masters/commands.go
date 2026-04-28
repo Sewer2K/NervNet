@@ -146,7 +146,7 @@ func (a *Admin) Commands() {
 			a.Println(pColor + "Usage:" + reset + " " + white + "<method> <target> <port> <duration> <len> [options]" + reset)
 			a.Println(pColor + "  Tips:" + reset)
 			a.Println("    - " + gray + "Target can be an IP or domain name (auto-resolved)" + reset)
-			a.Println("    - " + gray + "Use 'path=/' for HTTP/Cloudflare/Nerv_L7 attacks" + reset)
+			a.Println("    - " + gray + "Use 'path=/my/path' for HTTP requests (defaults to /)" + reset)
 			a.Println("    - " + gray + "Type 'help' for detailed flag options" + reset)
 			a.Println(pColor + "Commands:" + reset)
 			a.Println("  " + sColor + "-" + reset + " " + pColor + "help" + reset + "      " + white + "Show detailed flag options" + reset)

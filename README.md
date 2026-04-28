@@ -198,7 +198,7 @@ http example.com 80 60 1024 path=/
 http example.com 80 60 1024 path=/login useragent="Mozilla/5.0"
 tls example.com 443 60 512
 tlsplus example.com 443 60 512
-cloudflare example.com 443 60 512 path=/
+cloudflare example.com 443 60 512
 nerv_l7 example.com 80 60 1024 path=/index.html
 
 # Games
