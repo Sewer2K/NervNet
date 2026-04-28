@@ -7,15 +7,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
 #include <fcntl.h>
-#include <sys/select.h>
 #include <errno.h>
 
 #include "includes.h"
-#include "resolv.h"
 #include "util.h"
 #include "rand.h"
+#include "resolv.h"
 #include "protocol.h"
 
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
@@ -45,19 +45,30 @@ void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 
 static void resolv_skip_name(uint8_t *reader, uint8_t *buffer, int *count)
 {
-    unsigned int jumped = 0, offset;
-    *count = 1;
-    while(*reader != 0)
+    unsigned char *start;
+    start = reader;
+
+    if (*reader == 0)
     {
-        if(*reader >= 192)
+        *count = 1;
+        return;
+    }
+
+    while (1)
+    {
+        if ((*reader & 0xC0) == 0xC0)
         {
-            offset = (*reader)*256 + *(reader+1) - 49152;
-            reader = buffer + offset - 1;
-            jumped = 1;
+            *count = (reader - start) + 2;
+            return;
         }
-        reader = reader+1;
-        if(jumped == 0)
-            *count = *count + 1;
+
+        if (*reader == 0)
+        {
+            *count = (reader - start) + 1;
+            return;
+        }
+        reader = reader + 1;
+        reader = reader + (*reader);
     }
 
     if(jumped == 1)
@@ -128,86 +139,91 @@ struct resolv_entries *resolv_lookup(char *domain)
         }
 
         fcntl(F_SETFL, fd, O_NONBLOCK | fcntl(F_GETFL, fd, 0));
-        FD_ZERO(&fdset);
-        FD_SET(fd, &fdset);
 
-        timeo.tv_sec = 5;
-        timeo.tv_usec = 0;
-        nfds = select(fd + 1, &fdset, NULL, NULL, &timeo);
-
-        if (nfds == -1)
+        while (1)
         {
-            #ifdef DEBUG
-                printf("[resolv] select() failed\n");
-            #endif
-            break;
-        }
-        else if (nfds == 0)
-        {
-            #ifdef DEBUG
-                printf("[resolv] Couldn't resolve %s in time. %d tr%s\n", domain, tries, tries == 1 ? "y" : "ies");
-            #endif
-            continue;
-        }
-        else if (FD_ISSET(fd, &fdset))
-        {
-            #ifdef DEBUG
-                printf("[resolv] Got response from select\n");
-            #endif
-            int ret = recvfrom(fd, response, sizeof (response), MSG_NOSIGNAL, NULL, NULL);
-            char *name;
-            struct dnsans *dnsa;
-            uint16_t ancount;
-            int stop;
+            int ret;
 
-            if (ret < (sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question)))
-                continue;
+            FD_ZERO(&fdset);
+            FD_SET(fd, &fdset);
 
-            dnsh = (struct dnshdr *)response;
-            qname = (char *)(dnsh + 1);
-            dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
-            name = (char *)(dnst + 1);
+            timeo.tv_sec = 1;
+            timeo.tv_usec = 0;
 
-            if (dnsh->id != dns_id)
-                continue;
-            if (dnsh->ancount == 0)
-                continue;
-
-            ancount = ntohs(dnsh->ancount);
-            while (ancount-- > 0)
+            nfds = select(fd + 1, &fdset, NULL, NULL, &timeo);
+            if (nfds == -1)
             {
-                struct dns_resource *r_data = NULL;
-
-                resolv_skip_name(name, response, &stop);
-                name = name + stop;
-
-                r_data = (struct dns_resource *)name;
-                name = name + sizeof(struct dns_resource);
-
-                if (r_data->type == htons(PROTO_DNS_QTYPE_A) && r_data->_class == htons(PROTO_DNS_QCLASS_IP))
-                {
-                    if (ntohs(r_data->data_len) == 4)
-                    {
-                        uint32_t *p;
-                        uint8_t tmp_buf[4];
-                        for(i = 0; i < 4; i++)
-                            tmp_buf[i] = name[i];
-
-                        p = (uint32_t *)tmp_buf;
-
-                        entries->addrs = realloc(entries->addrs, (entries->addrs_len + 1) * sizeof (ipv4_t));
-                        entries->addrs[entries->addrs_len++] = (*p);
-#ifdef DEBUG
-                        printf("[resolv] Found IP address: %d.%d.%d.%d\n", CONVERT_ADDR(*p));
-#endif
-                    }
-
-                    name = name + ntohs(r_data->data_len);
-                } else {
-                    resolv_skip_name(name, response, &stop);
-                    name = name + stop;
-                }
+                #ifdef DEBUG
+                    printf("[resolv] Failed to call select() on socket\n");
+                #endif
+                sleep(1);
+                continue;
             }
+            if (nfds > 0)
+            {
+                if ((ret = recv(fd, response, sizeof (response), MSG_NOSIGNAL)) == -1)
+                {
+                    #ifdef DEBUG
+                        printf("[resolv] Failed to recv() response\n");
+                    #endif
+                    sleep(1);
+                    continue;
+                }
+
+                if (ret < (sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question)))
+                    continue;
+
+                dnsh = (struct dnshdr *)response;
+                qname = (char *)(dnsh + 1);
+                dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
+                
+                if (dnsh->id != dns_id)
+                    continue;
+                if (dnsh->ancount == 0)
+                    continue;
+
+                int ancount = ntohs(dnsh->ancount);
+                char *name = (char *)(dnst + 1);
+
+                while (ancount-- > 0)
+                {
+                    struct dns_resource *r_data = NULL;
+                    int stop = 0;
+
+                    resolv_skip_name((uint8_t *)name, (uint8_t *)response, &stop);
+                    name = name + stop;
+
+                    r_data = (struct dns_resource *)name;
+                    name = name + sizeof(struct dns_resource);
+
+                    if (r_data->type == htons(PROTO_DNS_QTYPE_A) && r_data->_class == htons(PROTO_DNS_QCLASS_IP))
+                    {
+                        if (ntohs(r_data->data_len) == 4)
+                        {
+                            uint32_t *p;
+                            uint8_t tmp_buf[4];
+                            for(i = 0; i < 4; i++)
+                                tmp_buf[i] = name[i];
+
+                            p = (uint32_t *)tmp_buf;
+
+                            entries->addrs = realloc(entries->addrs, (entries->addrs_len + 1) * sizeof (ipv4_t));
+                            entries->addrs[entries->addrs_len++] = (*p);
+                            #ifdef DEBUG
+                                printf("[resolv] Found IP address: %d.%d.%d.%d\n", CONVERT_ADDR(*p));
+                            #endif
+                        }
+
+                        name = name + ntohs(r_data->data_len);
+                    } else {
+                        resolv_skip_name((uint8_t *)name, (uint8_t *)response, &stop);
+                        name = name + stop;
+                    }
+                }
+
+                break;
+            }
+        }
 
         break;
     }
@@ -215,7 +231,7 @@ struct resolv_entries *resolv_lookup(char *domain)
     close(fd);
 
     #ifdef DEBUG
-        printf("Resolved %s to %d IPv4 addresses\n", domain, entries->addrs_len);
+        printf("[resolv] Resolved %s to %d IPv4 addresses\n", domain, entries->addrs_len);
     #endif
 
     if (entries->addrs_len > 0)
